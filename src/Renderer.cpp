@@ -2,6 +2,7 @@
 #include "UIComponents.hpp"
 #include <rlgl.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <initializer_list>
 #include <stdexcept>
@@ -28,16 +29,16 @@ MaterialProfile materialFor(int id) {
     static constexpr MaterialProfile profiles[] = {
         {{89,104,120,255},{190,201,208,255},{151,166,179,255},.27f,.69f},
         {{104,109,113,255},{231,232,230,255},{177,182,183,255},.22f,.63f},
-        {{58,64,70,255},{149,155,156,255},{100,108,112,255},.33f,.64f},
+        {{62,77,94,255},{113,130,146,255},{89,106,123,255},.31f,.68f},
         {{73,87,100,255},{160,172,180,255},{124,138,149,255},.18f,.71f},
         {{65,82,99,255},{163,181,194,255},{116,139,158,255},.30f,.58f},
         {{108,111,113,255},{237,237,234,255},{184,188,188,255},.24f,.65f},
         {{105,110,112,255},{234,234,232,255},{180,185,185,255},.20f,.60f},
         {{101,106,111,255},{227,229,228,255},{173,179,182,255},.26f,.72f},
-        {{71,76,80,255},{190,190,183,255},{124,130,128,255},.29f,.66f},
-        {{52,56,60,255},{144,151,153,255},{90,98,103,255},.36f,.62f},
-        {{67,72,78,255},{207,210,207,255},{130,140,146,255},.25f,.67f},
-        {{75,73,69,255},{194,189,178,255},{133,130,123,255},.31f,.57f},
+        {{65,79,95,255},{118,133,148,255},{92,109,125,255},.27f,.67f},
+        {{57,70,85,255},{107,123,139,255},{82,98,114,255},.34f,.65f},
+        {{66,81,98,255},{121,137,151,255},{96,113,129,255},.26f,.69f},
+        {{70,82,96,255},{115,130,143,255},{96,111,125,255},.30f,.64f},
         {{91,106,120,255},{195,203,208,255},{147,161,173,255},.19f,.68f},
         {{66,80,94,255},{165,179,190,255},{115,134,147,255},.28f,.70f},
         {{61,79,95,255},{161,179,191,255},{113,135,151,255},.21f,.59f},
@@ -53,10 +54,21 @@ MaterialProfile materialFor(int id) {
         throw std::logic_error("Part is missing its material profile");
     return profiles[id];
 }
+// Five independently controlled transitions give metal a soft cylindrical
+// falloff without the hard bands of a two-colour gradient. Adjacent quads
+// share the exact same stop colours, including for translucent drag ghosts.
+std::array<float,6> metalStops(const MaterialProfile& p) {
+    return {0.0f,p.highlight*.42f,p.highlight,p.shadow,(p.shadow+1.0f)*.5f,1.0f};
+}
 Color metalAt(float u,Color tint,const MaterialProfile& p) {
-    if(u<p.highlight) return mix(p.edge,p.light,u/p.highlight,tint);
-    if(u<p.shadow) return mix(p.light,p.mid,(u-p.highlight)/(p.shadow-p.highlight),tint);
-    return mix(p.mid,p.edge,(u-p.shadow)/(1-p.shadow),tint);
+    const auto stops=metalStops(p);
+    const Color white{255,255,255,255};
+    const std::array<Color,6> colors{p.edge,mix(p.edge,p.light,.58f,white),p.light,p.mid,
+                                     mix(p.mid,p.edge,.53f,white),p.edge};
+    u=std::clamp(u,0.0f,1.0f);
+    for(std::size_t i=0;i+1<stops.size();++i)
+        if(u<=stops[i+1]) return mix(colors[i],colors[i+1],(u-stops[i])/(stops[i+1]-stops[i]),tint);
+    return tinted(p.edge,tint);
 }
 // Mesh strips use RLGL's own white pixel, not the font/shape atlas or any
 // previous part texture. QUADS keep the texture and primitive mode stable as
@@ -81,7 +93,7 @@ struct Canvas {
     float x,y,w,h;
     Color tint;
     MaterialProfile material;
-    Color ink() const { return tint.a<255?tint:tinted({30,44,58,255},tint); }
+    Color ink() const { return tint.a<255?tint:tinted({26,38,52,255},tint); }
     Color seam() const { return tinted({65,83,99,255},tint); }
     Color bright() const { return tinted({190,205,216,255},tint); }
     Color dark() const { return tinted({62,77,90,255},tint); }
@@ -104,8 +116,8 @@ struct Canvas {
         }
     }
     void band(float y0,float y1) const {
-        const float stops[]{0,material.highlight,material.shadow,1};
-        for(int i=0;i<3;++i) {
+        const auto stops=metalStops(material);
+        for(std::size_t i=0;i+1<stops.size();++i) {
             float a=stops[i],b=stops[i+1]; Color ca=metalAt(a,tint,material),cb=metalAt(b,tint,material);
             DrawRectangleGradientEx({x+w*a,y+h*y0,w*(b-a),h*(y1-y0)},ca,ca,cb,cb);
         }
@@ -129,8 +141,8 @@ struct Canvas {
         }
     }
     void plate(float u0,float v0,float u1,float v1) const {
-        const float stops[]{0,material.highlight,material.shadow,1};
-        for(int i=0;i<3;++i) {
+        const auto stops=metalStops(material);
+        for(std::size_t i=0;i+1<stops.size();++i) {
             float a=stops[i],b=stops[i+1];
             Color ca=metalAt(a,tint,material),cb=metalAt(b,tint,material);
             DrawRectangleGradientEx({x+w*(u0+(u1-u0)*a),y+h*v0,w*(u1-u0)*(b-a),h*(v1-v0)},ca,ca,cb,cb);
@@ -144,7 +156,7 @@ struct Canvas {
         line(previous->x,previous->y,first->x,first->y,color);
     }
     void bolt(float u,float v) const {
-        circle(u,v,.035f,ink()); circle(u,v,.016f,bright());
+        circle(u,v,.024f,ink()); circle(u,v,.010f,bright());
     }
 };
 
@@ -218,141 +230,153 @@ void tank(const Canvas& c,int id) {
         default: throw std::logic_error("Tank is missing its vector design");
     }
 }
-// Each engine specifies an independent, hand-authored radial station profile.
-// The shared routine only rasterizes those contours; it does not generate a
-// cone from one exponent or alter geometry based on catalog size.
-struct BellStation { float y, halfWidth, light; };
-void engineBell(const Canvas& c,std::initializer_list<BellStation> stations) {
-    constexpr int slices=24;
-    auto vertex=[&](const BellStation& s,float t) {
-        Color base=metalAt(t,c.tint,c.material);
-        auto shade=[&](unsigned char v) { return static_cast<unsigned char>(std::round(v*s.light)); };
-        rlColor4ub(shade(base.r),shade(base.g),shade(base.b),base.a);
-        rlTexCoord2f(.5f,.5f); rlVertex2f(c.x+c.w*(.5f+(2*t-1)*s.halfWidth),c.y+c.h*s.y);
+// Cubic radial profiles are authored for each bell. The curve is evaluated in
+// engine-local coordinates and tessellated finely only for rasterization; it
+// is not a scaled copy of a generic cone. The mesh uses a single material and
+// continuous vertex colours, so its seams remain invisible at high zoom.
+struct BellProfile { float top, bottom, neck, control1, control2, lip; };
+float bellRadius(const BellProfile& p,float t) {
+    float u=1-t;
+    return u*u*u*p.neck+3*u*u*t*p.control1+3*u*t*t*p.control2+t*t*t*p.lip;
+}
+void engineBell(const Canvas& c,const BellProfile& p) {
+    constexpr int rows=48;
+    const auto stops=metalStops(c.material);
+    auto point=[&](float t,float across) {
+        return c.p(.5f+(2*across-1)*bellRadius(p,t),p.top+(p.bottom-p.top)*t);
+    };
+    auto vertex=[&](float t,float across) {
+        Color base=metalAt(across,c.tint,c.material);
+        // A restrained axial falloff keeps the rim grounded without visible
+        // rings or abrupt colour changes at the tessellation boundaries.
+        float shade=1.0f-.035f*t;
+        rlColor4ub(static_cast<unsigned char>(std::round(base.r*shade)),
+                   static_cast<unsigned char>(std::round(base.g*shade)),
+                   static_cast<unsigned char>(std::round(base.b*shade)),base.a);
+        Vector2 v=point(t,across); rlTexCoord2f(.5f,.5f); rlVertex2f(v.x,v.y);
     };
     rlSetTexture(rlGetTextureIdDefault()); rlBegin(RL_QUADS);
-    for(auto row=stations.begin();row+1!=stations.end();++row) {
-        for(int i=0;i<slices;++i) {
-            float a=static_cast<float>(i)/slices,b=static_cast<float>(i+1)/slices;
-            vertex(*row,a); vertex(*(row+1),a); vertex(*(row+1),b); vertex(*row,b);
+    for(int row=0;row<rows;++row) {
+        float a=static_cast<float>(row)/rows,b=static_cast<float>(row+1)/rows;
+        for(std::size_t i=0;i+1<stops.size();++i) {
+            float left=stops[i],right=stops[i+1];
+            vertex(a,left); vertex(b,left); vertex(b,right); vertex(a,right);
         }
     }
     rlEnd(); rlSetTexture(0);
-    for(auto row=stations.begin();row+1!=stations.end();++row) {
-        c.line(.5f-row->halfWidth,row->y,.5f-(row+1)->halfWidth,(row+1)->y,c.ink());
-        c.line(.5f+row->halfWidth,row->y,.5f+(row+1)->halfWidth,(row+1)->y,c.ink());
+    for(int row=0;row<rows;++row) {
+        float a=static_cast<float>(row)/rows,b=static_cast<float>(row+1)/rows;
+        float y0=p.top+(p.bottom-p.top)*a,y1=p.top+(p.bottom-p.top)*b;
+        c.line(.5f-bellRadius(p,a),y0,.5f-bellRadius(p,b),y1,c.ink());
+        c.line(.5f+bellRadius(p,a),y0,.5f+bellRadius(p,b),y1,c.ink());
     }
+}
+// Narrow, restrained surface joints, following the local bell silhouette.
+void bellJoint(const Canvas& c,const BellProfile& p,float t) {
+    float r=bellRadius(p,t),y=p.top+(p.bottom-p.top)*t;
+    c.line(.5f-r+.012f,y,.5f+r-.012f,y,tinted({67,82,97,255},c.tint));
 }
 void exitRim(const Canvas& c,float width,float y,float depth) {
     c.ellipse(.5f,y,width,depth,c.ink());
-    c.ellipse(.5f,y-.002f,width*.96f,depth*.78f,tinted({135,147,153,255},c.tint));
-    c.ellipse(.5f,y-.004f,width*.87f,depth*.56f,c.black());
-    c.ellipse(.5f,y-.008f,width*.59f,depth*.29f,tinted({49,58,64,255},c.tint));
-    c.line(.5f-width,y+depth,.5f+width,y+depth,c.ink());
+    c.ellipse(.5f,y-.002f,width*.965f,depth*.79f,tinted({135,147,153,255},c.tint));
+    c.ellipse(.5f,y-.003f,width*.89f,depth*.57f,c.black());
+    c.ellipse(.5f,y-.006f,width*.61f,depth*.26f,tinted({49,58,68,255},c.tint));
 }
 void throat(const Canvas& c,float y,float width,float depth) {
     c.ellipse(.5f,y,width,depth,c.ink());
-    c.ellipse(.5f,y,width*.66f,depth*.59f,c.black());
+    c.ellipse(.5f,y,width*.70f,depth*.59f,c.black());
 }
-// A compact rounded pressure chamber, separately shaded from the dark bell.
-// The caller chooses its placement and proportions; the surrounding hardware
-// remains specific to each engine.
+// Shallow gimbal housing with a cylindrical highlight, dark seals and a
+// single mechanical collar; not a painted-on window or generic ball.
 void chamber(const Canvas& c,float x,float y,float w,float h) {
     MaterialProfile finish=c.material;
-    auto brighter=[](unsigned char v,int delta) { return static_cast<unsigned char>(std::min(255,static_cast<int>(v)+delta)); };
-    finish.edge={brighter(finish.edge.r,32),brighter(finish.edge.g,32),brighter(finish.edge.b,32),255};
-    finish.light={brighter(finish.light.r,36),brighter(finish.light.g,36),brighter(finish.light.b,36),255};
-    finish.mid={brighter(finish.mid.r,38),brighter(finish.mid.g,38),brighter(finish.mid.b,38),255};
+    auto brighten=[](unsigned char v,int d) { return static_cast<unsigned char>(std::min(255,int(v)+d)); };
+    finish.edge={brighten(finish.edge.r,12),brighten(finish.edge.g,12),brighten(finish.edge.b,12),255};
+    finish.light={brighten(finish.light.r,16),brighten(finish.light.g,16),brighten(finish.light.b,16),255};
+    finish.mid={brighten(finish.mid.r,14),brighten(finish.mid.g,14),brighten(finish.mid.b,14),255};
     Canvas body{c.x+c.w*x,c.y+c.h*y,c.w*w,c.h*h,c.tint,finish};
-    auto top=[](float u){float d=2*u-1;return .20f*d*d;};
-    auto bottom=[](float u){float d=2*u-1;return .98f-.22f*d*d;};
-    body.skin(0,1,top,bottom); body.curve(0,1,top,body.ink()); body.curve(0,1,bottom,body.ink());
-    body.line(0,.20f,0,.76f,body.ink()); body.line(1,.20f,1,.76f,body.ink());
+    // Chamfered chamber in straight geometric segments. The breakpoints
+    // coincide with the shell mesh so the one-pixel outline meets the fill.
+    auto top=[](float u){return u<.1875f?.16f*(1-u/.1875f):u>.8125f?.16f*(u-.8125f)/.1875f:0.0f;};
+    auto bottom=[](float u){return u<.1875f?.80f+.18f*u/.1875f:u>.8125f?.80f+.18f*(1-u)/.1875f:.98f;};
+    body.skin(0,1,top,bottom);
+    body.outline({{0,.16f},{.1875f,0},{.8125f,0},{1,.16f},
+                  {1,.80f},{.8125f,.98f},{.1875f,.98f},{0,.80f}},body.ink());
+    body.line(.04f,.35f,.96f,.35f,body.seam());
+    body.line(.04f,.68f,.96f,.68f,body.seam());
+}
+// Narrow struts are filled polygons with one-pixel outlines, rather than
+// scale-dependent thick strokes. Their design is stable at icon and VAB size.
+void support(const Canvas& c,float x0,float y0,float x1,float y1,float thickness) {
+    float half=.006f*thickness;
+    c.poly({{x0-half,y0},{x0+half,y0},{x1+half,y1},{x1-half,y1}},tinted({93,111,127,255},c.tint));
+    c.outline({{x0-half,y0},{x0+half,y0},{x1+half,y1},{x1-half,y1}},c.ink());
 }
 void valiant(const Canvas& c) {
-    // Slender upper-stage chamber, open triangular support and long nozzle.
-    c.plate(0,0,1,.105f);
-    c.line(.06f,.075f,.94f,.075f,c.bright());
-    c.poly({{.18f,.105f},{.24f,.105f},{.37f,.38f},{.32f,.38f}},c.dark());
-    c.poly({{.76f,.105f},{.82f,.105f},{.68f,.38f},{.63f,.38f}},c.dark());
-    c.line(.18f,.105f,.32f,.38f,c.ink()); c.line(.82f,.105f,.68f,.38f,c.ink());
-    chamber(c,.35f,.11f,.30f,.28f);
-    c.plate(.36f,.20f,.64f,.27f);
-    c.line(.40f,.31f,.44f,.37f,c.bright());
-    c.line(.38f,.25f,.62f,.25f,c.bright());
-    engineBell(c,{{.37f,.095f,.92f},{.48f,.13f,1.0f},{.70f,.18f,.95f},{.88f,.25f,.88f},{.96f,.30f,.84f}});
-    c.line(.29f,.79f,.71f,.79f,c.seam());
-    throat(c,.375f,.073f,.019f); exitRim(c,.29f,.965f,.029f);
+    const BellProfile bell{.405f,.955f,.085f,.105f,.16f,.275f};
+    c.plate(0,0,1,.09f); c.line(.03f,.06f,.97f,.06f,c.bright());
+    c.bolt(.12f,.045f); c.bolt(.88f,.045f);
+    // Two tall propellant-feed housings give this upper-stage engine its own
+    // narrow, vertically articulated silhouette.
+    c.plate(.19f,.105f,.29f,.31f); c.plate(.71f,.105f,.81f,.31f);
+    support(c,.29f,.25f,.37f,.38f,1); support(c,.71f,.25f,.63f,.38f,1);
+    chamber(c,.35f,.105f,.30f,.285f);
+    c.plate(.33f,.215f,.67f,.26f);
+    engineBell(c,bell); bellJoint(c,bell,.72f);
+    throat(c,.408f,.068f,.016f); exitRim(c,.275f,.963f,.027f);
 }
 void titan(const Canvas& c) {
-    // Heavy mount, broad chamber, exposed gas generator and small vernier.
-    c.plate(0,0,1,.13f); c.line(.03f,.095f,.97f,.095f,c.bright());
-    for(float x:{.12f,.30f,.70f,.88f}) c.bolt(x,.055f);
-    chamber(c,.30f,.13f,.40f,.26f);
-    c.plate(.25f,.22f,.75f,.28f);
-    c.line(.37f,.31f,.43f,.37f,c.bright());
-    c.line(.16f,.12f,.22f,.35f,c.dark(),2); c.line(.84f,.12f,.78f,.35f,c.dark(),2);
-    c.plate(.06f,.17f,.20f,.37f);
-    c.poly({{.07f,.37f},{.19f,.37f},{.17f,.44f},{.09f,.44f}},c.dark());
-    c.outline({{.07f,.37f},{.19f,.37f},{.17f,.44f},{.09f,.44f}},c.ink());
-    c.line(.08f,.44f,.18f,.44f,c.black(),2);
-    c.plate(.80f,.19f,.91f,.32f);
-    c.line(.81f,.32f,.70f,.39f,c.seam(),2);
-    engineBell(c,{{.37f,.14f,.88f},{.46f,.20f,.93f},{.58f,.27f,.98f},{.72f,.34f,.87f},{.86f,.40f,.94f},{.96f,.44f,.80f}});
-    for(float y:{.46f,.58f,.72f,.86f}) {
-        float r=y==.46f?.20f:(y==.58f?.27f:(y==.72f?.34f:.40f));
-        c.line(.5f-r+.01f,y,.5f+r-.01f,y,c.seam());
-    }
-    throat(c,.38f,.105f,.024f); exitRim(c,.43f,.965f,.029f);
+    const BellProfile bell{.365f,.955f,.14f,.23f,.37f,.445f};
+    c.plate(0,0,1,.115f); c.line(.025f,.083f,.975f,.083f,c.bright());
+    for(float x:{.10f,.29f,.71f,.90f}) c.bolt(x,.052f);
+    support(c,.22f,.115f,.32f,.36f,2); support(c,.78f,.115f,.68f,.36f,2);
+    chamber(c,.30f,.12f,.40f,.23f); c.plate(.26f,.205f,.74f,.25f);
+    // Side gas-generator outlets surround a single broad main bell. They are
+    // visually separate auxiliary nozzles, not extra gameplay thrust sources.
+    c.plate(.065f,.15f,.19f,.285f); c.plate(.81f,.15f,.935f,.285f);
+    c.poly({{.085f,.285f},{.17f,.285f},{.19f,.405f},{.065f,.405f}},c.dark());
+    c.outline({{.085f,.285f},{.17f,.285f},{.19f,.405f},{.065f,.405f}},c.ink());
+    c.line(.075f,.396f,.18f,.396f,c.black());
+    c.poly({{.83f,.285f},{.915f,.285f},{.935f,.405f},{.81f,.405f}},c.dark());
+    c.outline({{.83f,.285f},{.915f,.285f},{.935f,.405f},{.81f,.405f}},c.ink());
+    c.line(.82f,.396f,.925f,.396f,c.black());
+    engineBell(c,bell); bellJoint(c,bell,.28f); bellJoint(c,bell,.61f);
+    throat(c,.37f,.105f,.020f); exitRim(c,.445f,.963f,.027f);
 }
 void hawk(const Canvas& c) {
-    // First-stage steep bell with a squat gimbal and crossed side braces.
-    c.plate(0,0,1,.12f);
-    c.bolt(.14f,.055f); c.bolt(.86f,.055f);
-    c.line(.17f,.12f,.32f,.37f,c.seam(),2); c.line(.83f,.12f,.68f,.37f,c.seam(),2);
-    chamber(c,.29f,.11f,.42f,.21f);
-    c.plate(.27f,.20f,.73f,.26f);
-    c.poly({{.09f,.13f},{.16f,.13f},{.18f,.34f},{.11f,.34f}},c.dark());
-    c.outline({{.09f,.13f},{.16f,.13f},{.18f,.34f},{.11f,.34f}},c.ink());
-    c.line(.10f,.34f,.16f,.39f,c.seam(),2);
-    engineBell(c,{{.29f,.11f,.91f},{.38f,.17f,.99f},{.54f,.26f,.92f},{.77f,.36f,.85f},{.96f,.41f,.78f}});
-    for(const auto& rib: {Vector2{.39f,.176f}, {.46f,.215f}, {.54f,.26f}, {.62f,.295f},
-                          {.70f,.33f}, {.78f,.363f}, {.86f,.384f}, {.92f,.40f}})
-        c.line(.5f-rib.y+.01f,rib.x,.5f+rib.y-.01f,rib.x,c.seam());
-    throat(c,.30f,.08f,.021f); exitRim(c,.40f,.965f,.029f);
+    const BellProfile bell{.30f,.955f,.11f,.20f,.31f,.405f};
+    c.plate(0,0,1,.105f); c.line(.025f,.072f,.975f,.072f,c.bright());
+    c.bolt(.13f,.047f); c.bolt(.87f,.047f);
+    support(c,.19f,.105f,.32f,.30f,2); support(c,.81f,.105f,.68f,.30f,2);
+    chamber(c,.30f,.105f,.40f,.20f); c.plate(.28f,.18f,.72f,.225f);
+    c.plate(.08f,.13f,.16f,.29f); support(c,.16f,.25f,.29f,.31f,1);
+    engineBell(c,bell); bellJoint(c,bell,.30f); bellJoint(c,bell,.60f);
+    throat(c,.305f,.082f,.019f); exitRim(c,.405f,.963f,.027f);
 }
 void frontier(const Canvas& c) {
-    // Long vacuum bell, bright central chamber, unequal side plumbing.
-    c.plate(0,0,1,.09f); c.line(.02f,.065f,.98f,.065f,c.bright());
-    chamber(c,.34f,.10f,.32f,.24f);
-    c.plate(.32f,.16f,.68f,.21f);
-    c.line(.39f,.24f,.46f,.32f,c.bright());
-    c.plate(.10f,.12f,.22f,.24f); c.line(.16f,.24f,.29f,.32f,c.seam(),2);
-    c.plate(.78f,.11f,.89f,.29f); c.line(.82f,.29f,.70f,.38f,c.dark(),2);
-    c.line(.14f,.09f,.12f,.12f,c.ink()); c.line(.86f,.09f,.85f,.11f,c.ink());
-    engineBell(c,{{.32f,.08f,.94f},{.45f,.13f,1.0f},{.56f,.19f,.98f},{.75f,.30f,.93f},{.92f,.43f,.89f},{.96f,.45f,.83f}});
-    c.line(.31f,.56f,.69f,.56f,c.bright());
-    c.line(.20f,.75f,.80f,.75f,c.seam());
-    throat(c,.325f,.062f,.016f); exitRim(c,.44f,.965f,.029f);
+    const BellProfile bell{.38f,.955f,.095f,.14f,.29f,.395f};
+    c.plate(0,0,1,.085f); c.line(.025f,.058f,.975f,.058f,c.bright());
+    c.bolt(.11f,.04f); c.bolt(.89f,.04f);
+    support(c,.22f,.085f,.35f,.36f,2); support(c,.78f,.085f,.65f,.36f,2);
+    chamber(c,.34f,.095f,.32f,.265f); c.plate(.32f,.17f,.68f,.215f);
+    c.plate(.13f,.12f,.22f,.25f); support(c,.22f,.25f,.34f,.32f,1);
+    c.plate(.78f,.12f,.87f,.25f); support(c,.78f,.25f,.66f,.32f,1);
+    engineBell(c,bell); bellJoint(c,bell,.52f);
+    throat(c,.385f,.073f,.016f); exitRim(c,.395f,.963f,.027f);
 }
 void kolibri(const Canvas& c) {
-    // Compact stubby assembly with a short bell and offset propellant bottle.
-    c.plate(0,0,1,.14f); c.line(.04f,.11f,.96f,.11f,c.bright());
-    c.plate(.11f,.17f,.25f,.34f);
-    chamber(c,.34f,.15f,.32f,.25f);
-    c.line(.39f,.28f,.43f,.37f,c.bright());
-    c.line(.24f,.24f,.76f,.24f,c.bright(),2); c.line(.79f,.14f,.76f,.27f,c.dark(),2);
-    engineBell(c,{{.39f,.10f,.91f},{.53f,.16f,.98f},{.77f,.28f,.90f},{.96f,.34f,.82f}});
-    c.line(.23f,.77f,.77f,.77f,c.seam());
-    throat(c,.395f,.072f,.020f); exitRim(c,.33f,.965f,.029f);
+    const BellProfile bell{.34f,.955f,.095f,.15f,.24f,.32f};
+    c.plate(0,0,1,.13f); c.line(.05f,.09f,.95f,.09f,c.bright());
+    c.plate(.30f,.15f,.70f,.29f);
+    c.poly({{.36f,.29f},{.64f,.29f},{.61f,.34f},{.39f,.34f}},c.dark());
+    c.outline({{.36f,.29f},{.64f,.29f},{.61f,.34f},{.39f,.34f}},c.ink());
+    engineBell(c,bell); bellJoint(c,bell,.68f);
+    throat(c,.345f,.072f,.016f); exitRim(c,.32f,.963f,.027f);
 }
 void engine(const Canvas& c,int id) {
     switch(id) {
-        case 8: valiant(c); break;
-        case 9: titan(c); break;
-        case 2: hawk(c); break;
-        case 10: frontier(c); break;
-        case 11: kolibri(c); break;
+        case 8: valiant(c); break; case 9: titan(c); break; case 2: hawk(c); break;
+        case 10: frontier(c); break; case 11: kolibri(c); break;
         default: throw std::logic_error("Engine is missing its vector design");
     }
 }

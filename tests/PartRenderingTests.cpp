@@ -102,13 +102,15 @@ int main() {
     Renderer::part(partById(1),-2,-9,0,view,white);
     assert(hasLine({-40,-180},{40,-180}));
     assert(hasLine({-40,-60},{40,-60}));
-    assert(gradientBands.size()==3);
+    assert(gradientBands.size()==5);
+    assert(bandColors.size()==10);
+    for(std::size_t i=0;i+1<5;++i) assert(equal(bandColors[2*i+1],bandColors[2*i+2]));
     assert(near(gradientBands.front().x,0));
     assert(near(gradientBands.back().x+gradientBands.back().width,80));
     lines.clear();
     Renderer::part(partById(2),-2,-3,0,view,white);
     assert(hasLine({-40,-60},{40,-60})); // Engine flange meets the tank bottom.
-    assert(vertices.size()==24*4*4);
+    assert(vertices.size()==48*5*4);
     for (const auto& vertex : vertices) {
         assert(vertex.position.x>=0 && vertex.position.x<=80);
         assert(vertex.position.y>=0 && vertex.position.y<=partById(2).height*20);
@@ -122,48 +124,50 @@ int main() {
     std::set<std::string> bellContours;
     for(int id:{8,9,2,10,11}) {
         const auto& d=partById(id); float h=d.height*20.0f, w=d.width*20.0f;
-        triangles.clear(); lines.clear(); gradientBands.clear();
+        triangles.clear(); lines.clear(); gradientBands.clear(); circles=0;
         Renderer::part(d,0,0,0,view,white);
-        int rows=id==9||id==10?5:(id==11?3:4);
-        struct Point { float y,half; };
-        std::vector<Point> expected;
+        constexpr int rows=48,slices=5;
+        struct Profile { float top,bottom,neck,c1,c2,lip; };
+        Profile p{};
         switch(id) {
-            case 8: expected={{.37f,.095f},{.48f,.13f},{.70f,.18f},{.88f,.25f},{.96f,.30f}}; break;
-            case 9: expected={{.37f,.14f},{.46f,.20f},{.58f,.27f},{.72f,.34f},{.86f,.40f},{.96f,.44f}}; break;
-            case 2: expected={{.29f,.11f},{.38f,.17f},{.54f,.26f},{.77f,.36f},{.96f,.41f}}; break;
-            case 10:expected={{.32f,.08f},{.45f,.13f},{.56f,.19f},{.75f,.30f},{.92f,.43f},{.96f,.45f}}; break;
-            case 11:expected={{.39f,.10f},{.53f,.16f},{.77f,.28f},{.96f,.34f}}; break;
+            case 8: p={.405f,.955f,.085f,.105f,.16f,.275f}; break;
+            case 9: p={.365f,.955f,.14f,.23f,.37f,.445f}; break;
+            case 2: p={.30f,.955f,.11f,.20f,.31f,.405f}; break;
+            case 10:p={.38f,.955f,.095f,.14f,.29f,.395f}; break;
+            case 11:p={.34f,.955f,.095f,.15f,.24f,.32f}; break;
         }
-        assert(expected.size()==static_cast<std::size_t>(rows+1));
-        float bellHeight=(expected.back().y-expected.front().y)*h;
-        float bellWidth=2*expected.back().half*w;
-        assert(bellHeight>=bellWidth*.98f); // a long bell, not a squashed cone
-        assert(vertices.size()==static_cast<std::size_t>(rows*24*4) && triangles.size()>=6*32);
-        // Mounting plates and plumbing must differ, not just bell scale or tone.
-        assert(gradientBands.size()==static_cast<std::size_t>((id==9 || id==10 ? 4 : 2)*3));
-        for(int row=0;row<rows;++row) {
-            int base=row*24*4;
-            assert(near(vertices[base].position.x/w,.5f-expected[row].half));
-            assert(near(vertices[base].position.y/h,expected[row].y));
-            assert(near(vertices[base+1].position.x/w,.5f-expected[row+1].half));
-            assert(near(vertices[base+1].position.y/h,expected[row+1].y));
+        assert((p.bottom-p.top)*h>=2*p.lip*w*.98f);
+        assert(vertices.size()==static_cast<std::size_t>(rows*slices*4) && triangles.size()>=6*32);
+        assert(gradientBands.size()>=10); // mounting hardware uses multi-stop metal
+        if(id==9) {
+            // Both auxiliary outlets and the broad central bell must be present.
+            assert(hasLine({.19f*w,.405f*h},{.065f*w,.405f*h}));
+            assert(hasLine({.935f*w,.405f*h},{.81f*w,.405f*h}));
+            assert(circles==8); // four two-part flange fasteners
         }
+        if(id==8) {
+            assert(hasLine({.19f*w,.105f*h},{.19f*w,.31f*h}));
+            assert(hasLine({.81f*w,.105f*h},{.81f*w,.31f*h}));
+        }
+        if(id==11) assert(circles==0); // the micro-engine stays deliberately minimal
+        auto radius=[&](float t) { float u=1-t; return u*u*u*p.neck+3*u*u*t*p.c1+3*u*t*t*p.c2+t*t*t*p.lip; };
         std::ostringstream contour;
         for(int row=0;row<rows;++row) {
-            const auto rowStart=row*24*4;
-            // Capture both edges and both heights of every station, normalized
-            // to the part bounds. Proportional scaling alone cannot pass.
-            for(int i:{0,1,23*4+2,23*4+3})
+            int rowStart=row*slices*4;
+            float t=static_cast<float>(row)/rows;
+            assert(near(vertices[rowStart].position.x/w,.5f-radius(t)));
+            assert(near(vertices[rowStart].position.y/h,p.top+(p.bottom-p.top)*t));
+            for(int i:{0,1,(slices-1)*4+2,(slices-1)*4+3})
                 contour << vertices[rowStart+i].position.x/w << ',' << vertices[rowStart+i].position.y/h << ';';
-            for(int slice=0;slice<23;++slice) {
+            for(int slice=0;slice<slices-1;++slice) {
                 int base=rowStart+slice*4, neighbor=base+4;
                 assert(equal(vertices[base+2].position,vertices[neighbor+1].position));
                 assert(equal(vertices[base+3].position,vertices[neighbor].position));
                 assert(equal(vertices[base+2].color,vertices[neighbor+1].color));
                 assert(equal(vertices[base+3].color,vertices[neighbor].color));
             }
-            if(row+1<rows) for(int slice=0;slice<24;++slice) {
-                int base=rowStart+slice*4, neighbor=(row+1)*24*4+slice*4;
+            if(row+1<rows) for(int slice=0;slice<slices;++slice) {
+                int base=rowStart+slice*4, neighbor=(row+1)*slices*4+slice*4;
                 assert(equal(vertices[base+1].position,vertices[neighbor].position));
                 assert(equal(vertices[base+2].position,vertices[neighbor+3].position));
                 assert(equal(vertices[base+1].color,vertices[neighbor].color));
@@ -171,6 +175,21 @@ int main() {
             }
         }
         assert(bellContours.insert(contour.str()).second);
+        // Adjacent tessellation stations form a smooth authored curve, not a
+        // handful of flat-sided cone segments. Check the steel-blue palette.
+        for(int row=1;row<rows-1;++row) {
+            float before=radius(static_cast<float>(row-1)/rows);
+            float current=radius(static_cast<float>(row)/rows);
+            float after=radius(static_cast<float>(row+1)/rows);
+            assert(std::abs(after-2*current+before)<.001f);
+        }
+        bool blueGrey=false, highlight=false;
+        for(const auto& vertex:vertices) {
+            auto color=vertex.color;
+            blueGrey |= color.b>color.g && color.g>color.r && color.r>=48 && color.r<=75;
+            highlight |= color.b>color.g && color.g>color.r && color.r>=105;
+        }
+        assert(blueGrey && highlight);
         bool throat=false,mouth=false,metalRim=false;
         for(const auto& t:triangles) {
             float centerY=(t.a.y+t.b.y+t.c.y)/3;
@@ -180,11 +199,13 @@ int main() {
             metalRim |= t.color.r==135 && t.color.g==147 && centerY>h*.90f;
         }
         assert(throat && mouth && metalRim);
-        for(const auto& line:lines) if(equal(line.color,Color{30,44,58,255})) assert(near(line.width,1));
-        triangles.clear();
+        for(const auto& line:lines) if(equal(line.color,Color{26,38,52,255})) assert(near(line.width,1));
+        triangles.clear(); lines.clear(); bandColors.clear();
         Renderer::part(d,0,0,0,view,Color{255,128,125,180});
         for(const auto& vertex:vertices) assert(vertex.color.a==180);
         for(const auto& t:triangles) assert(t.color.a==180);
+        for(const auto& l:lines) assert(l.color.a==180);
+        for(const auto& color:bandColors) assert(color.a==180);
     }
     assert(bellContours.size()==5);
     // Critical recognisable hardware and exact attachment-facing features.
@@ -197,8 +218,8 @@ int main() {
     for(const auto& line:lines) shieldTouchesBottom |= equal(line.a,{40,20}) || equal(line.b,{40,20});
     assert(shieldTouchesBottom); // the curved heat shield reaches its bottom node
     gradientBands.clear(); Renderer::part(partById(13),0,0,0,view,white);
-    assert(gradientBands.size()==6); // two separate side-separator housings
-    assert(gradientBands[2].x+gradientBands[2].width < gradientBands[3].x);
+    assert(gradientBands.size()==10); // two separate side-separator housings
+    assert(gradientBands[4].x+gradientBands[4].width < gradientBands[5].x);
     std::set<std::string> designs;
     std::set<unsigned> materialEdges;
     for(const auto& d:partCatalog()) {
@@ -226,7 +247,7 @@ int main() {
         if(d.shape==PartShape::Parachute || d.shape==PartShape::HeatShield || d.shape==PartShape::Engine) assert(art.find("mesh;")!=std::string::npos);
         lines.clear(); Renderer::part(d,0,0,0,view,white);
         bool outline=false;
-        for(const auto& line:lines) if(equal(line.color,Color{30,44,58,255})) { outline=true; assert(near(line.width,1)); }
+        for(const auto& line:lines) if(equal(line.color,Color{26,38,52,255})) { outline=true; assert(near(line.width,1)); }
         assert(outline); // dark slate outlines remain a crisp one pixel
         for(int rotation=0; rotation<4; ++rotation) Renderer::part(d,4,3,rotation,view,white,false,true);
     }
