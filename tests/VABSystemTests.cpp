@@ -131,7 +131,44 @@ int main() {
     VABSystem control;
     auto rcs=control.preview(15,0,10,false);
     check(control.place(15,rcs,false) && control.telemetry().thrust==0,"RCS thrust is not included in main engine TWR");
-    check(partCatalog().size()>=22,"core catalog is populated");
+    check(partCatalog().size()==83,"expanded catalog includes every implemented variant");
+    for(auto category:{Category::Pods,Category::FuelTanks,Category::Engines,Category::Aerodynamics,Category::Fairings,Category::Structural,Category::Other}) {
+        bool found=false; for(const auto& d:partCatalog()) found|=d.category==category;
+        check(found,"each catalog tab contains parts");
+    }
+    check(partInCategory(partById(15),Category::Engines) && partInCategory(partById(15),Category::Other),"RCS is listed in engines and other");
+    check(partInCategory(partById(69),Category::Engines) && partInCategory(partById(69),Category::Other),"ion engine is listed in engines and other");
+    check(partInCategory(partById(4),Category::Pods) && partInCategory(partById(4),Category::Other),"probe is listed as both control and other");
+    for(int w:{6,8,10,12}) for(int h:{2,4,6,8,16}) {
+        const PartDef* tank=nullptr;
+        for(const auto& d:partCatalog()) if(d.shape==PartShape::Tank && d.width==w && d.height==h) tank=&d;
+        check(tank!=nullptr,"wide tank exists for each width and height");
+        check(std::abs((tank->dryMass+tank->fuelCapacity)-w*h*.625)<1e-8 &&
+              std::abs(tank->fuelCapacity/(tank->dryMass+tank->fuelCapacity)-.9)<1e-8,
+              "wide tank mass and fuel follow the published progression");
+        for(int w2:{4,6,8,10,12}) {
+            const PartDef* mate=nullptr;
+            for(const auto& d:partCatalog()) if(d.shape==PartShape::Tank && d.width==w2 && d.height==2) mate=&d;
+            check(mate!=nullptr,"matching tank available");
+            VABSystem build;
+            auto base=build.preview(tank->id,0,0,false);
+            check(build.place(tank->id,base,false),"place wide tank");
+            double targetY=base.position.y+h+mate->height/2.0;
+            auto snapped=build.preview(mate->id,0,targetY,false);
+            check(snapped.valid && snapped.snapped && build.place(mate->id,snapped,false),"different tank widths snap and place");
+            check(build.parts()[1].position.y==build.parts()[0].position.y+h,"different widths share an exact attachment plane");
+        }
+    }
+    VABSystem ionBuild;
+    auto ion=ionBuild.preview(69,0,20,false); check(ionBuild.place(69,ion,false),"place ion engine");
+    check(std::abs(ionBuild.telemetry().thrust-1.5*9.80665)<1e-8,"ion engine contributes main thrust");
+    for(int id:{66,67,68,74,75,76,77,82}) {
+        VABSystem build; VABInteraction drag(build);
+        drag.choosePart(id);
+        check(drag.finishDrag(20,20,true,false,true),"new radial part can be dragged and released");
+        check(build.parts().size()==1,"drag commits one new radial part");
+    }
+
     check(partById(5).height<partById(6).height && partById(6).height<partById(1).height && partById(1).height<partById(7).height,"tank sizes increase");
     for(int id:{5,6,1,7}) { const auto& tankDef=partById(id); check(std::abs(tankDef.fuelCapacity/(tankDef.dryMass+tankDef.fuelCapacity)-.9)<1e-8,"tank mass is 90 percent fuel"); }
     for(int id:{8,9,2,10,11}) {

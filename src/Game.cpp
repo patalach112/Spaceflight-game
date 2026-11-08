@@ -90,7 +90,8 @@ void Game::workshop() {
     if(rightCancel) interaction_.cancel();
     float w=static_cast<float>(GetScreenWidth()),h=static_cast<float>(GetScreenHeight());
     float s=std::min(settings_.uiScale,std::min(w/900.0f,h/660.0f));
-    float side=300*s,rail=78*s,top=60*s,bottom=84*s;
+    // Leave room for expanded catalog labels even at the minimum font size.
+    float side=320*s,rail=78*s,top=60*s,bottom=84*s;
     Rectangle area=rect(side,top,w-side,h-top-bottom);
     Rectangle list=rect(rail,97*s,side-rail,h-164*s);
     Rectangle tools=rect(side+14*s,top+12*s,332*s,42*s);
@@ -154,9 +155,9 @@ void Game::workshop() {
     ui::label("DRAG TO BUILD",rail+14*s,43*s,12*s,ui::muted);
     DrawLineEx({rail,0},{rail,h},1,ui::line);
     DrawLineEx({rail,74*s},{side,74*s},1,ui::line);
-    const char* names[]={"PODS","TANKS","ENGINES","STRUCT"};
-    Category cats[]={Category::Pods,Category::FuelTanks,Category::Engines,Category::Structural};
-    for(int i=0;i<4;++i) {
+    const char* names[]={"PODS","TANKS","ENGINES","AERO","FAIRING","STRUCT","OTHER"};
+    Category cats[]={Category::Pods,Category::FuelTanks,Category::Engines,Category::Aerodynamics,Category::Fairings,Category::Structural,Category::Other};
+    for(int i=0;i<7;++i) {
         Rectangle tab=rect(0,76*s+i*70*s,rail,68*s); bool active=category_==cats[i],hover=ui::hit(tab);
         if(active || hover) DrawRectangleRec(tab,active?Color{43,69,87,255}:Color{38,55,70,255});
         if(active) DrawRectangle(0,static_cast<int>(tab.y),3,static_cast<int>(tab.height),ui::cyan);
@@ -170,11 +171,14 @@ void Game::workshop() {
             DrawLineEx({center.x+3*s,center.y-6*s},{center.x+7*s,center.y+8*s},1,icon);
             DrawLineEx({center.x-7*s,center.y+8*s},{center.x+7*s,center.y+8*s},1,icon);
         }
-        else { DrawRectangleLinesEx(rect(center.x-10*s,center.y-5*s,20*s,10*s),1.5f,icon); }
+        else if(i==3) { DrawLineEx({center.x,center.y-10*s},{center.x-9*s,center.y+8*s},1,icon); DrawLineEx({center.x,center.y-10*s},{center.x+9*s,center.y+8*s},1,icon); DrawLineEx({center.x-9*s,center.y+8*s},{center.x+9*s,center.y+8*s},1,icon); }
+        else if(i==4) { DrawLineEx({center.x-7*s,center.y-10*s},{center.x-7*s,center.y+10*s},1,icon); DrawLineEx({center.x+7*s,center.y-10*s},{center.x+7*s,center.y+10*s},1,icon); DrawLineEx({center.x-7*s,center.y-10*s},{center.x,center.y-5*s},1,icon); DrawLineEx({center.x+7*s,center.y-10*s},{center.x,center.y-5*s},1,icon); }
+        else if(i==5) { DrawRectangleLinesEx(rect(center.x-10*s,center.y-5*s,20*s,10*s),1.5f,icon); DrawLineEx({center.x-9*s,center.y-4*s},{center.x+9*s,center.y+4*s},1,icon); }
+        else { DrawCircleLinesV(center,8*s,icon); DrawCircleLinesV(center,3*s,icon); }
         ui::label(names[i],8*s,tab.y+45*s,12*s,active?ui::text:ui::muted);
         if(hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { category_=cats[i]; catalogScroll_=0; }
     }
-    int count=0; for(const auto& d:partCatalog()) if(d.category==category_) ++count;
+    int count=0; for(const auto& d:partCatalog()) if(partInCategory(d,category_)) ++count;
     // Compact flat rows: the vector part itself is the icon, without an inset
     // preview window. The whole row remains a drag target.
     const float titlePixels=static_cast<float>(ui::pixelSize(12*s));
@@ -188,7 +192,7 @@ void Game::workshop() {
     catalogScroll_=std::clamp(catalogScroll_,0.0f,maxScroll);
     BeginScissorMode(static_cast<int>(list.x),static_cast<int>(list.y),static_cast<int>(list.width),static_cast<int>(list.height));
     float tileY=list.y-catalogScroll_;
-    for(const auto& d:partCatalog()) if(d.category==category_) {
+    for(const auto& d:partCatalog()) if(partInCategory(d,category_)) {
         Rectangle tile=rect(rail+4*s,tileY,side-rail-12*s,tileHeight);
         bool hover=CheckCollisionPointRec(mouse,list) && CheckCollisionPointRec(mouse,tile);
         if(hover) DrawRectangleRec(tile,Color{45,64,81,255});
