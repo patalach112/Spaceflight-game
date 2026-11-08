@@ -11,7 +11,10 @@ public:
     int rotation() const { return rotation_; }
     bool flipped() const { return flipped_; }
     bool deployed() const;
+    double deployProgress() const;
+    void updateAnimations(double seconds);
     bool canToggleDeployment() const;
+    bool deploymentBlocked() const;
     bool toggleDeployment();
     bool moving() const { return moved_.has_value(); }
     unsigned long long selected() const { return selected_; }
@@ -30,6 +33,7 @@ private:
     VABSystem& system_;
     int dragId_ = -1, rotation_ = 0;
     bool flipped_ = false, dragDeployed_ = false;
+    double dragProgress_ = 0;
     std::optional<PartInstance> moved_;
     unsigned long long selected_ = 0;
     double offsetX_ = 0, offsetY_ = 0;

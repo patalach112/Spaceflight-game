@@ -1,5 +1,5 @@
 // Standalone with Raylib headers (no display required):
-// g++ -std=c++20 -ffunction-sections -fdata-sections -Iinclude -I<raylib-src> src/Game.cpp src/PartCatalog.cpp src/VABSystem.cpp src/VABInteraction.cpp tests/VABPanelTests.cpp -Wl,--gc-sections -o panel-tests && ./panel-tests
+// g++ -std=c++20 -ffunction-sections -fdata-sections -Iinclude -I<raylib-src> src/Game.cpp src/PartCatalog.cpp src/PartGeometry.cpp src/VABSystem.cpp src/VABInteraction.cpp tests/VABPanelTests.cpp -Wl,--gc-sections -o panel-tests && ./panel-tests
 #include "Renderer.hpp"
 #include "VABInteraction.hpp"
 #include "UIComponents.hpp"
@@ -13,6 +13,7 @@
 #include <cstdlib>
 static Vector2 mouse{}; static bool pressed=false,released=false,down=false; static int key=0; static float wheel=0;
 struct Tile { int id; Rectangle r; }; static std::vector<Tile> tiles; static std::vector<std::string> labels;
+struct PartDraw { int id; double progress; }; static std::vector<PartDraw> draws;
 extern "C" {
 int GetScreenWidth(void){return 900;} int GetScreenHeight(void){return 600;}
 Vector2 GetMousePosition(void){return mouse;} Vector2 GetMouseDelta(void){return {};}
@@ -33,10 +34,10 @@ bool button(Rectangle r,const std::string&,float,bool){return hit(r)&&pressed;}
 Vector2 Renderer::toScreen(double x,double y,const Viewport& v){return {v.originX+(float)x*20*v.zoom,v.originY+(float)y*20*v.zoom};}
 Vector2 Renderer::toGrid(Vector2 p,const Viewport& v){return {(p.x-v.originX)/(20*v.zoom),(p.y-v.originY)/(20*v.zoom)};}
 void Renderer::workspace(const Viewport&,Rectangle){}
-void Renderer::part(const PartDef&,double,double,int,const Viewport&,Color,bool,bool,bool){}
+void Renderer::part(const PartDef& d,double,double,int,const Viewport&,Color,bool,bool,double progress){draws.push_back({d.id,progress});}
 void Renderer::tilePart(const PartDef& d,Rectangle r,bool){tiles.push_back({d.id,r});}
 void check(bool ok,const char* msg){if(!ok){std::cerr<<"FAIL: "<<msg<<"\n";std::exit(1);}}
-void frame(Game& g,Vector2 p,bool press=false,bool release=false,bool hold=false,float scroll=0,int k=0){mouse=p;pressed=press;released=release;down=hold;wheel=scroll;key=k;tiles.clear();labels.clear();g.workshop();}
+void frame(Game& g,Vector2 p,bool press=false,bool release=false,bool hold=false,float scroll=0,int k=0){mouse=p;pressed=press;released=release;down=hold;wheel=scroll;key=k;tiles.clear();labels.clear();draws.clear();g.workshop();}
 int main(){
  Game g; float s=600.0f/660.0f;
  CatalogTab tabs[]={CatalogTab::Basics,CatalogTab::Wide6,CatalogTab::Wide8,CatalogTab::Wide10,CatalogTab::Wide12,CatalogTab::Aerodynamics,CatalogTab::Fairings,CatalogTab::Structural,CatalogTab::Other};
@@ -51,9 +52,12 @@ int main(){
  Vector2 icon{target.r.x+target.r.width*.5f,target.r.y+target.r.height*.5f};
  frame(g,icon); check(std::find(labels.begin(),labels.end(),"SMALL SOLAR PANEL")!=labels.end(),"hover identifies the part");
  frame(g,icon,true,false,true); check(g.interaction_.active() && g.interaction_.partId()==74,"icon pickup starts drag");
- frame(g,{500,350},false,false,true,0,KEY_D); check(g.interaction_.deployed(),"D changes live ghost state");
+ frame(g,{500,350},false,false,true,0,KEY_D); check(g.interaction_.deployed() && g.interaction_.deployProgress()==0,"D sets the ghost target without popping");
+ frame(g,{500,350},false,false,true); check(g.interaction_.deployProgress()>0 && g.interaction_.deployProgress()<1,"ghost animates over multiple frames");
+ check(!draws.empty() && draws.back().id==74 && std::abs(draws.back().progress-g.interaction_.deployProgress())<1e-8,"renderer receives the animated ghost phase");
  frame(g,{500,350},false,true); check(!g.interaction_.active() && g.vab_.parts().size()==1 && g.vab_.parts()[0].deployed,"release commits deployed panel");
- auto p=g.vab_.parts()[0]; Vector2 pos=Renderer::toScreen(p.position.x+1,p.position.y+1,g.view_);
+ auto p=g.vab_.parts()[0]; check(p.deployProgress>0 && p.deployProgress<1,"drop retains intermediate phase"); auto poly=partGeometry(partById(p.defId),p.position,p.rotation,p.flipped,p.deployProgress)[0];
+ Vector2 pos=Renderer::toScreen((poly[0].x+poly[2].x)/2,(poly[0].y+poly[2].y)/2,g.view_);
  frame(g,pos,true,false,true); frame(g,pos,false,true); check(g.interaction_.selected()!=0,"click selects placed panel");
  frame(g,{500,350},false,false,false,0,KEY_D); check(!g.vab_.parts()[0].deployed,"D stows selected panel");
  float side=148*s,top=60*s; frame(g,{side+(14+336+30)*s,top+(12+20)*s},true); check(g.vab_.parts()[0].deployed,"toolbar toggles selected panel");

@@ -1,5 +1,6 @@
 #include "VABSystem.hpp"
 #include <cmath>
+#include <algorithm>
 #include <iterator>
 namespace {
 bool opposite(Direction a, Direction b) {
@@ -23,23 +24,26 @@ bool VABSystem::nodeOccupied(GridPoint point, Direction direction) const {
     }
     return false;
 }
-bool VABSystem::canPlace(int defId, GridPoint pos, int rotation) const {
+bool VABSystem::canPlace(int defId, GridPoint pos, int rotation, bool flipped, double progress, unsigned long long ignore) const {
     const auto& d=partById(defId);
-    int w=partWidth(d,rotation), h=partHeight(d,rotation);
-    for (const auto& part : parts_) {
+    auto shape=partGeometry(d,pos,rotation,flipped,progress);
+    for(const auto& part:parts_) {
+        if(part.uid==ignore) continue;
         const auto& other=partById(part.defId);
-        if (overlap(pos,w,h,part.position,partWidth(other,part.rotation),partHeight(other,part.rotation))) return false;
+        if(overlap(pos,partWidth(d,rotation),partHeight(d,rotation),part.position,partWidth(other,part.rotation),partHeight(other,part.rotation)) &&
+           geometryOverlaps(shape,partGeometry(other,part.position,part.rotation,part.flipped,part.deployProgress))) return false;
     }
     return true;
 }
-Placement VABSystem::preview(int defId, double x, double y, bool symmetry, int rotation, bool flipped) const {
+Placement VABSystem::preview(int defId, double x, double y, bool symmetry, int rotation, bool flipped, double progress) const {
     const auto& d=partById(defId); rotation=normalizedRotation(rotation);
     int w=partWidth(d,rotation),h=partHeight(d,rotation);
     GridPoint desired{static_cast<int>(std::round(x-w/2.0)),static_cast<int>(std::round(y-h/2.0))};
     auto validAt=[&](GridPoint pos) {
         GridPoint mirrored=mirror(pos,w);
-        return canPlace(defId,pos,rotation) && (!symmetry || same(pos,mirrored) ||
-            (canPlace(defId,mirrored,-rotation) && !overlap(pos,w,h,mirrored,w,h)));
+        return canPlace(defId,pos,rotation,flipped,progress) && (!symmetry || same(pos,mirrored) ||
+            (canPlace(defId,mirrored,-rotation,!flipped,progress) &&
+             !geometryOverlaps(partGeometry(d,pos,rotation,flipped,progress),partGeometry(d,mirrored,-rotation,!flipped,progress))));
     };
     bool gridValid=validAt(desired);
     Placement result{desired,{},false,gridValid,rotation,flipped};
@@ -68,21 +72,27 @@ Placement VABSystem::preview(int defId, double x, double y, bool symmetry, int r
     }
     return result;
 }
-bool VABSystem::place(int id,const Placement& p,bool symmetry,bool deployed) {
+bool VABSystem::place(int id,const Placement& p,bool symmetry,bool deployed,double progress) {
     int rotation=normalizedRotation(p.rotation);
-    if(!p.valid || !canPlace(id,p.position,rotation)) return false;
-    const auto& d=partById(id); int w=partWidth(d,rotation),h=partHeight(d,rotation);
-    GridPoint mirrored=mirror(p.position,w);
-    if(symmetry && !same(p.position,mirrored) && (!canPlace(id,mirrored,-rotation) || overlap(p.position,w,h,mirrored,w,h))) return false;
+    const auto& d=partById(id);
     deployed=deployed && supportsDeployment(d);
-    parts_.push_back({id,p.position,nextUid_++,rotation,p.flipped,deployed});
-    if(symmetry && !same(p.position,mirrored)) parts_.push_back({id,mirrored,nextUid_++,normalizedRotation(-rotation),!p.flipped,deployed});
+    if(!supportsDeployment(d)) progress=0;
+    else if(!std::isfinite(progress) || progress<0) progress=deployed?1:0;
+    progress=std::clamp(progress,0.0,1.0);
+    if(!p.valid || !canPlace(id,p.position,rotation,p.flipped,progress)) return false;
+    int w=partWidth(d,rotation);
+    GridPoint mirrored=mirror(p.position,w);
+    if(symmetry && !same(p.position,mirrored) &&
+       (!canPlace(id,mirrored,-rotation,!p.flipped,progress) ||
+        geometryOverlaps(partGeometry(d,p.position,rotation,p.flipped,progress),partGeometry(d,mirrored,-rotation,!p.flipped,progress)))) return false;
+    parts_.push_back({id,p.position,nextUid_++,rotation,p.flipped,deployed,progress});
+    if(symmetry && !same(p.position,mirrored)) parts_.push_back({id,mirrored,nextUid_++,normalizedRotation(-rotation),!p.flipped,deployed,progress});
     return true;
 }
 std::optional<PartInstance> VABSystem::removeAt(double x,double y) {
     for(auto it=parts_.rbegin();it!=parts_.rend();++it) {
         const auto& d=partById(it->defId);
-        if(x>=it->position.x && x<it->position.x+partWidth(d,it->rotation) && y>=it->position.y && y<it->position.y+partHeight(d,it->rotation)) {
+        if(geometryContains(partGeometry(d,it->position,it->rotation,it->flipped,it->deployProgress),x,y)) {
             auto p=*it; parts_.erase(std::next(it).base()); return p;
         }
     }
@@ -93,7 +103,8 @@ bool VABSystem::removeById(unsigned long long uid) {
     return false;
 }
 bool VABSystem::restore(const PartInstance& p) {
-    if(!canPlace(p.defId,p.position,p.rotation)) return false;
+    if(!std::isfinite(p.deployProgress) || p.deployProgress<0 || p.deployProgress>1) return false;
+    if(!canPlace(p.defId,p.position,p.rotation,p.flipped,p.deployProgress)) return false;
     parts_.push_back(p); return true;
 }
 const PartInstance* VABSystem::findById(unsigned long long uid) const {
@@ -101,25 +112,47 @@ const PartInstance* VABSystem::findById(unsigned long long uid) const {
     return nullptr;
 }
 bool VABSystem::toggleDeploymentById(unsigned long long uid) {
-    for(auto& p:parts_) if(p.uid==uid && supportsDeployment(partById(p.defId))) { p.deployed=!p.deployed; return true; }
+    for(auto& p:parts_) if(p.uid==uid && supportsDeployment(partById(p.defId))) { p.deployed=!p.deployed; p.deploymentBlocked=false; return true; }
     return false;
+}
+void VABSystem::updateAnimations(double seconds) {
+    if(!std::isfinite(seconds) || seconds<=0) return;
+    constexpr double duration=.65;
+    for(auto& part:parts_) {
+        const auto& def=partById(part.defId);
+        if(!supportsDeployment(def)) continue;
+        double goal=part.deployed?1.0:0.0;
+        double next=part.deployProgress+std::clamp(goal-part.deployProgress,-seconds/duration,seconds/duration);
+        if(next==part.deployProgress) { part.deploymentBlocked=false; continue; }
+        auto start=partGeometry(def,part.position,part.rotation,part.flipped,part.deployProgress);
+        auto clearTo=[&](double t) {
+            auto swept=sweptGeometry(start,partGeometry(def,part.position,part.rotation,part.flipped,t));
+            for(const auto& other:parts_) if(other.uid!=part.uid) {
+                const auto& od=partById(other.defId);
+                if(overlap(part.position,partWidth(def,part.rotation),partHeight(def,part.rotation),other.position,partWidth(od,other.rotation),partHeight(od,other.rotation)) &&
+                   geometryOverlaps(swept,partGeometry(od,other.position,other.rotation,other.flipped,other.deployProgress))) return false;
+            }
+            return true;
+        };
+        if(clearTo(next)) { part.deployProgress=next; part.deploymentBlocked=false; }
+        else {
+            part.deploymentBlocked=true;
+            // Stop at the obstacle rather than tunnelling or popping through it.
+            double lo=0,hi=1;
+            for(int i=0;i<20;++i) { double mid=(lo+hi)/2; if(clearTo(part.deployProgress+(next-part.deployProgress)*mid)) lo=mid; else hi=mid; }
+            part.deployProgress+=(next-part.deployProgress)*lo;
+        }
+    }
 }
 bool VABSystem::rotateById(unsigned long long uid,int direction) {
     for(auto& p:parts_) if(p.uid==uid) {
-        auto old=p; const auto& d=partById(p.defId);
+        const auto& d=partById(p.defId);
         int rotation=normalizedRotation(p.rotation+direction);
-        // Map each orientation to a stable integer-grid anchor, avoiding drift
-        // when even-by-odd parts are rotated repeatedly.
         auto offsetX=[&](int r) { return static_cast<int>(std::floor((d.width-partWidth(d,r))/2.0)); };
         auto offsetY=[&](int r) { return static_cast<int>(std::floor((d.height-partHeight(d,r))/2.0)); };
         GridPoint pos{p.position.x-offsetX(p.rotation)+offsetX(rotation),p.position.y-offsetY(p.rotation)+offsetY(rotation)};
-        // Temporarily remove this part from collision checks, preserving its identity and order.
-        p.position=pos; p.rotation=rotation;
-        for(const auto& other:parts_) if(other.uid!=uid) {
-            const auto& od=partById(other.defId);
-            if(overlap(pos,partWidth(d,rotation),partHeight(d,rotation),other.position,partWidth(od,other.rotation),partHeight(od,other.rotation))) { p=old; return false; }
-        }
-        return true;
+        if(!canPlace(p.defId,pos,rotation,p.flipped,p.deployProgress,uid)) return false;
+        p.position=pos; p.rotation=rotation; return true;
     }
     return false;
 }

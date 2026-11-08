@@ -18,7 +18,7 @@ struct PartDef {
     std::vector<AttachNode> nodes;
     PartShape shape;
 };
-struct PartInstance { int defId; GridPoint position; unsigned long long uid; int rotation = 0; bool flipped = false; bool deployed = false; };
+struct PartInstance { int defId; GridPoint position; unsigned long long uid; int rotation = 0; bool flipped = false; bool deployed = false; double deployProgress = 0; bool deploymentBlocked = false; };
 // Rotation is clockwise in 90 degree steps, around the part's bounding box.
 AEGIS_API int normalizedRotation(int rotation);
 AEGIS_API int partWidth(const PartDef& def, int rotation);

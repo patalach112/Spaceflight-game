@@ -1,6 +1,7 @@
 // Standalone renderer regression test using Raylib mocks, without a window.
-// g++ -std=c++20 -Iinclude -I<raylib-source>/src src/PartCatalog.cpp src/Renderer.cpp tests/PartRenderingTests.cpp -o part-tests
+// g++ -std=c++20 -Iinclude -I<raylib-source>/src src/PartCatalog.cpp src/PartGeometry.cpp src/Renderer.cpp tests/PartRenderingTests.cpp -o part-tests
 #include "Renderer.hpp"
+#include "UIComponents.hpp"
 #include <rlgl.h>
 #include <cassert>
 #include <cmath>
@@ -19,7 +20,7 @@ std::vector<Line> lines, gridLines;
 Color lastRectangleColor{};
 Rectangle lastRectangle{};
 std::vector<Triangle> triangles;
-int circles=0;
+int circles=0,selectionRectangles=0;
 std::vector<Rectangle> gradientBands;
 Color currentColor{};
 int pushes=0, pops=0, scissors=0, cullOff=0, cullOn=0, flushes=0;
@@ -75,7 +76,7 @@ void DrawRectangleRec(Rectangle r,Color color) { lastRectangle=r; lastRectangleC
 void DrawRectangleGradientEx(Rectangle rect,Color a,Color,Color,Color d) { gradientBands.push_back(rect); bandColors.push_back(a); bandColors.push_back(d); if(recording) { signature << "gradient;"; box(rect); } }
 void DrawCircleV(Vector2 p,float r,Color) { ++circles; if(recording) { signature << "circle;"; xy(p); signature << r/std::min(normW,normH) << ';'; normalizedGeometry.push_back(r/std::min(normW,normH)); } }
 void DrawCircleLinesV(Vector2,float,Color) {}
-void DrawRectangleLinesEx(Rectangle,float,Color) {}
+void DrawRectangleLinesEx(Rectangle,float,Color) { ++selectionRectangles; }
 void BeginScissorMode(int,int,int,int) { ++scissors; }
 void EndScissorMode(void) {}
 void BeginMode2D(Camera2D camera) { assert(std::fmod(camera.rotation,90.0f) == 0); translation=camera.offset; }
@@ -220,6 +221,22 @@ int main() {
         Renderer::part(d,0,0,0,view,white,false,false,true);
         recording=false;
         assert(!stowed.empty() && stowed!=normalizedGeometry);
+    }
+    // The selected outline follows the very same component vertices as the
+    // hitboxes, at intermediate phases as well as at both endpoints.
+    for(int id:{14,68,74,75}) for(double progress:{0.0,.25,.5,.75,1.0}) {
+        const auto& def=partById(id);
+        lines.clear(); selectionRectangles=0;
+        Renderer::part(def,0,0,0,view,white,true,false,progress);
+        assert(selectionRectangles==0);
+        for(const auto& piece:deploymentGeometry(def,progress)) for(int i=0;i<4;++i) {
+            auto a=piece.vertices[i],b=piece.vertices[(i+1)%4];
+            Vector2 aa{static_cast<float>(a.x*def.width*20),static_cast<float>(a.y*def.height*20)};
+            Vector2 bb{static_cast<float>(b.x*def.width*20),static_cast<float>(b.y*def.height*20)};
+            bool found=false;
+            for(auto l:lines) if(equal(l.color,ui::cyan) && equal(l.a,aa) && equal(l.b,bb) && near(l.width,1)) found=true;
+            assert(found);
+        }
     }
     // Critical recognisable hardware and exact attachment-facing features.
     lines.clear(); Renderer::part(partById(14),0,0,0,view,white,false,false,true);

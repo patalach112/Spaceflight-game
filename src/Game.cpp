@@ -86,6 +86,7 @@ void Game::workshop() {
         if(interaction_.active()) interaction_.cancel();
         else { state_=GameState::MAIN_MENU; return; }
     }
+    interaction_.updateAnimations(GetFrameTime());
     bool rightCancel=interaction_.active() && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT);
     if(rightCancel) interaction_.cancel();
     float w=static_cast<float>(GetScreenWidth()),h=static_cast<float>(GetScreenHeight());
@@ -126,7 +127,7 @@ void Game::workshop() {
 
     Renderer::workspace(view_,rect(side,0,w-side,h));
     BeginScissorMode(static_cast<int>(area.x),static_cast<int>(area.y),static_cast<int>(area.width),static_cast<int>(area.height));
-    for(const auto& p:vab_.parts()) Renderer::part(partById(p.defId),p.position.x,p.position.y,p.rotation,view_,Color{255,255,255,255},p.uid==interaction_.selected(),p.flipped,p.deployed);
+    for(const auto& p:vab_.parts()) Renderer::part(partById(p.defId),p.position.x,p.position.y,p.rotation,view_,Color{255,255,255,255},p.uid==interaction_.selected(),p.flipped,p.deployProgress);
     if(showCenter_) {
         CenterOfMass c=interaction_.centerOfMass();
         if(c.mass>0) {
@@ -151,6 +152,8 @@ void Game::workshop() {
     if(interaction_.canToggleDeployment() && ui::button(rect(bx+336*s,by,120*s,bh),interaction_.deployed()?"STOW [D]":"DEPLOY [D]",s,interaction_.deployed())) {
         if(interaction_.toggleDeployment() && interaction_.moving()) movedActually_=true;
     }
+
+    if(interaction_.deploymentBlocked()) ui::label("DEPLOYMENT BLOCKED",bx+336*s,by+bh+5*s,12*s,ui::cyan);
 
     ui::box(rect(0,0,side,h),ui::panel,ui::line);
     DrawRectangleRec(rect(0,0,rail,h),Color{16,25,36,255});
@@ -232,10 +235,10 @@ void Game::workshop() {
         bool snapped=inArea && p.snapped;
         double gx=snapped?p.position.x:interaction_.ghostX(grid.x), gy=snapped?p.position.y:interaction_.ghostY(grid.y);
         Color ghost=(!inArea || p.valid)?Color{150,220,255,180}:Color{255,128,125,180};
-        Renderer::part(d,gx,gy,rotation,view_,ghost,false,interaction_.flipped(),interaction_.deployed());
+        Renderer::part(d,gx,gy,rotation,view_,ghost,false,interaction_.flipped(),interaction_.deployProgress());
         double mirrored=-gx-width;
         bool drawMirror=inArea && symmetry_ && !interaction_.moving() && -p.position.x-width!=p.position.x;
-        if(drawMirror) Renderer::part(d,mirrored,gy,-rotation,view_,ghost,false,!interaction_.flipped(),interaction_.deployed());
+        if(drawMirror) Renderer::part(d,mirrored,gy,-rotation,view_,ghost,false,!interaction_.flipped(),interaction_.deployProgress());
         if(p.snapped && inArea) {
             Color indicator=p.valid?ui::cyan:ui::orange;
             DrawCircleLinesV(Renderer::toScreen(p.snapPoint.x,p.snapPoint.y,view_),7*s,indicator);

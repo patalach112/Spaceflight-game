@@ -9,7 +9,7 @@ option(AEGIS_BUILD_GAME "Build the Raylib application" ON)
 option(AEGIS_BUILD_TESTS "Build the headless construction tests" ON)
 
 add_library(aegis_engine SHARED
-  src/PartCatalog.cpp src/VABSystem.cpp src/VABInteraction.cpp)
+  src/PartCatalog.cpp src/PartGeometry.cpp src/VABSystem.cpp src/VABInteraction.cpp)
 target_include_directories(aegis_engine PUBLIC include)
 target_compile_definitions(aegis_engine PRIVATE AEGIS_ENGINE_EXPORTS)
 set_target_properties(aegis_engine PROPERTIES
@@ -80,7 +80,7 @@ endif()
 
 if(AEGIS_BUILD_TESTS)
   enable_testing()
-  add_executable(aegis_tests tests/VABSystemTests.cpp tests/VABInteractionTests.cpp)
+  add_executable(aegis_tests tests/VABSystemTests.cpp tests/VABInteractionTests.cpp tests/DeploymentTests.cpp)
   # Keep parallel game/test post-build copies from writing the same DLL simultaneously.
   set_target_properties(aegis_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/$<CONFIG>")
   target_link_libraries(aegis_tests PRIVATE aegis_engine)
