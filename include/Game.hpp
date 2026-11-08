@@ -11,11 +11,11 @@ private:
     VABSystem vab_;
     VABInteraction interaction_{vab_};
     Viewport view_{0,0,1};
-    bool viewInitialized_ = false, symmetry_ = false, quit_ = false;
+    bool viewInitialized_ = false, symmetry_ = false, showCenter_ = false, quit_ = false;
     Category category_ = Category::Pods;
     bool movedActually_ = false;
     Vector2 dragStart_{}, zoomAnchor_{};
-    float targetZoom_ = 1.0f;
+    float targetZoom_ = 1.0f, catalogScroll_ = 0;
     void update();
     void menu();
     void settings();

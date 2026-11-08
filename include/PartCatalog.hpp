@@ -15,6 +15,11 @@ struct PartDef {
     double dryMass, fuelCapacity, thrust; // tonnes, tonnes, kN
     std::vector<AttachNode> nodes;
 };
-struct PartInstance { int defId; GridPoint position; unsigned long long uid; };
+struct PartInstance { int defId; GridPoint position; unsigned long long uid; int rotation = 0; };
+// Rotation is clockwise in 90 degree steps, around the part's bounding box.
+AEGIS_API int normalizedRotation(int rotation);
+AEGIS_API int partWidth(const PartDef& def, int rotation);
+AEGIS_API int partHeight(const PartDef& def, int rotation);
+AEGIS_API AttachNode rotatedNode(const PartDef& def, AttachNode node, int rotation);
 AEGIS_API const std::vector<PartDef>& partCatalog();
 AEGIS_API const PartDef& partById(int id);
