@@ -7,6 +7,8 @@ inline constexpr Color line{50,80,115,255}, grid{41,67,97,255}, text{255,255,255
 inline constexpr Color cyan{117,207,255,255}, orange{255,184,91,255}, red{255,128,125,255};
 void init();
 void shutdown();
+// Physical-pixel size used for both layout and glyph rasterization.
+int pixelSize(float size);
 void label(const std::string& value,float x,float y,float size,Color color=text);
 void box(Rectangle r,Color fill,Color border=line);
 bool button(Rectangle r,const std::string& title,float scale,bool active=false);

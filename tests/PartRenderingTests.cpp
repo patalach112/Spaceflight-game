@@ -12,9 +12,12 @@
 
 namespace {
 struct Vertex { Vector2 position; Color color; };
-struct Line { Vector2 a, b; float width; };
+struct Line { Vector2 a, b; float width; Color color; };
+struct Triangle { Vector2 a,b,c; Color color; };
 std::vector<Vertex> vertices;
 std::vector<Line> lines;
+std::vector<Triangle> triangles;
+int circles=0;
 std::vector<Rectangle> gradientBands;
 Color currentColor{};
 int pushes=0, pops=0, scissors=0, cullOff=0, cullOn=0, flushes=0;
@@ -55,15 +58,15 @@ void rlEnd(void) {}
 void rlTexCoord2f(float, float) {}
 void rlColor4ub(unsigned char r,unsigned char g,unsigned char b,unsigned char a) { currentColor={r,g,b,a}; }
 void rlVertex2f(float x,float y) { vertices.push_back({{x,y},currentColor}); if(recording) xy({x,y}); }
-void DrawLineEx(Vector2 a,Vector2 b,float width,Color) {
-    lines.push_back({{a.x+translation.x,a.y+translation.y},{b.x+translation.x,b.y+translation.y},width});
+void DrawLineEx(Vector2 a,Vector2 b,float width,Color color) {
+    lines.push_back({{a.x+translation.x,a.y+translation.y},{b.x+translation.x,b.y+translation.y},width,color});
     if(recording) { signature << "line;"; xy(a); xy(b); }
 }
 void DrawLineV(Vector2,Vector2,Color) {}
-void DrawTriangle(Vector2 a,Vector2 b,Vector2 c,Color) { assert((b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x)<=0.001f); if(recording) { signature << "triangle;"; xy(a); xy(b); xy(c); } }
+void DrawTriangle(Vector2 a,Vector2 b,Vector2 c,Color color) { triangles.push_back({a,b,c,color}); assert((b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x)<=0.001f); if(recording) { signature << "triangle;"; xy(a); xy(b); xy(c); } }
 void DrawRectangleRec(Rectangle r,Color) { if(recording) { signature << "rect;"; box(r); } }
 void DrawRectangleGradientEx(Rectangle rect,Color a,Color,Color,Color d) { gradientBands.push_back(rect); bandColors.push_back(a); bandColors.push_back(d); if(recording) { signature << "gradient;"; box(rect); } }
-void DrawCircleV(Vector2 p,float r,Color) { if(recording) { signature << "circle;"; xy(p); signature << r/std::min(normW,normH) << ';'; } }
+void DrawCircleV(Vector2 p,float r,Color) { ++circles; if(recording) { signature << "circle;"; xy(p); signature << r/std::min(normW,normH) << ';'; } }
 void DrawCircleLinesV(Vector2,float,Color) {}
 void DrawRectangleLinesEx(Rectangle,float,Color) {}
 void BeginScissorMode(int,int,int,int) { ++scissors; }
@@ -88,6 +91,7 @@ int main() {
         assert(equal(rightTop.color,nextTop.color));
     }
     assert(hasLine({-40,-180},{40,-180}));
+    assert(circles==0 && triangles.empty()); // no capsule porthole or floating window
     lines.clear(); gradientBands.clear();
     Renderer::part(partById(1),-2,-9,0,view,white);
     assert(hasLine({-40,-180},{40,-180}));
@@ -98,7 +102,7 @@ int main() {
     lines.clear();
     Renderer::part(partById(2),-2,-3,0,view,white);
     assert(hasLine({-40,-60},{40,-60})); // Engine flange meets the tank bottom.
-    assert(vertices.size()==32*4);
+    assert(vertices.size()==32*5*4);
     for (const auto& vertex : vertices) {
         assert(vertex.position.x>=0 && vertex.position.x<=80);
         assert(vertex.position.y>=0 && vertex.position.y<=60);
@@ -109,6 +113,41 @@ int main() {
     bandColors.clear();
     Renderer::part(partById(1),0,0,0,view,Color{255,128,125,180});
     assert(!bandColors.empty() && bandColors.front().r==96 && bandColors.front().g==57 && bandColors.front().a==180);
+    for(int id:{8,9,2,10,11}) {
+        const auto& d=partById(id); float h=d.height*20.0f;
+        triangles.clear(); lines.clear();
+        Renderer::part(d,0,0,0,view,white);
+        assert(vertices.size()==32*5*4 && triangles.size()>=7*32);
+        for(int slice=0;slice<31;++slice) for(int row=0;row<5;++row) {
+            const auto base=(slice*5+row)*4, neighbor=((slice+1)*5+row)*4;
+            assert(equal(vertices[base+2].position,vertices[neighbor+1].position));
+            assert(equal(vertices[base+3].position,vertices[neighbor].position));
+            assert(equal(vertices[base+2].color,vertices[neighbor+1].color));
+            assert(equal(vertices[base+3].color,vertices[neighbor].color));
+        }
+        // Each bell has a dark throat and an inset dark exhaust opening.
+        bool throat=false,mouth=false,metalRim=false;
+        for(const auto& t:triangles) {
+            float centerY=(t.a.y+t.b.y+t.c.y)/3;
+            bool dark=t.color.r<=30 && t.color.g<=44 && t.color.b<=58;
+            throat |= dark && centerY<h*.42f;
+            mouth |= dark && centerY>h*.90f;
+            metalRim |= t.color.r==135 && t.color.g==147 && centerY>h*.90f;
+        }
+        assert(throat && mouth && metalRim);
+        // Vertical shading changes across the bell and shares vertices/colors
+        // at the join between adjacent bands.
+        const auto& lower=vertices[(16*5+1)*4+1];
+        const auto& next=vertices[(16*5+2)*4];
+        assert(equal(lower.position,next.position) && equal(lower.color,next.color));
+        const auto& end=vertices[(16*5+2)*4+1];
+        assert(!equal(lower.color,end.color));
+        for(const auto& line:lines) if(equal(line.color,Color{30,44,58,255})) assert(near(line.width,1));
+        triangles.clear();
+        Renderer::part(d,0,0,0,view,Color{255,128,125,180});
+        for(const auto& vertex:vertices) assert(vertex.color.a==180);
+        for(const auto& t:triangles) assert(t.color.a==180);
+    }
     std::set<std::string> designs;
     for(const auto& d:partCatalog()) {
         // Compare normalized geometry, so varying dimensions alone do not make
@@ -120,9 +159,14 @@ int main() {
         recording=false;
         std::string art=signature.str();
         if(!designs.insert(art).second) { std::cerr << "duplicate art for " << d.name << '\n'; return 1; }
+        if(d.shape==PartShape::Capsule) assert(art.find("circle;")==std::string::npos && art.find("triangle;")==std::string::npos && art.find("rect;")==std::string::npos);
         if(d.shape==PartShape::Truss) assert(art.find("gradient;")==std::string::npos && art.find("rect;")==std::string::npos && art.find("mesh;")==std::string::npos);
         if(d.shape==PartShape::LandingLeg) assert(art.find("triangle;")!=std::string::npos && art.find("circle;")!=std::string::npos && art.find("mesh;")==std::string::npos);
         if(d.shape==PartShape::Parachute || d.shape==PartShape::HeatShield || d.shape==PartShape::Engine) assert(art.find("mesh;")!=std::string::npos);
+        lines.clear(); Renderer::part(d,0,0,0,view,white);
+        bool outline=false;
+        for(const auto& line:lines) if(equal(line.color,Color{30,44,58,255})) { outline=true; assert(near(line.width,1)); }
+        assert(outline); // dark slate outlines remain a crisp one pixel
         for(int rotation=0; rotation<4; ++rotation) Renderer::part(d,4,3,rotation,view,white,false,true);
     }
     assert(designs.size()==22);

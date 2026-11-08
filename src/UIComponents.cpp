@@ -49,8 +49,9 @@ void shutdown() {
     }
     fontPath.clear();
 }
+int pixelSize(float size) { return std::clamp(static_cast<int>(std::round(size)), minimumFontSize, maximumFontSize); }
 void label(const std::string& value, float x, float y, float size, Color color) {
-    const int pixels = std::clamp(static_cast<int>(std::round(size)), minimumFontSize, maximumFontSize);
+    const int pixels = pixelSize(size);
     color.a = 255;
     DrawTextEx(fontAt(pixels), value.c_str(), {std::floor(x), std::floor(y)}, static_cast<float>(pixels), 0.0f, color);
 }
