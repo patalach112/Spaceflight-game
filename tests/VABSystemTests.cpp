@@ -139,6 +139,43 @@ int main() {
             check(p.valid && testBuild.place(d.id,p,false),"every catalog part is placeable below the line at every rotation");
         }
     }
+    // Exercise every attachment node in every orientation and reflection.
+    // Each candidate is dropped exactly onto a tank node and must meet it
+    // without overlap or a grid-unit gap, on either side of the reference axis.
+    for(const auto& d:partCatalog()) for(int r=0;r<4;++r) for(bool flip:{false,true}) {
+        int w=partWidth(d,r),h=partHeight(d,r);
+        for(auto original:d.nodes) {
+            auto own=rotatedNode(d,original,r,flip);
+            auto reflected=rotatedNode(d,original,-r,!flip);
+            check(own.offset.x+reflected.offset.x==w && own.offset.y==reflected.offset.y,"every node reflects across the symmetry axis");
+            auto mirrorDirection=[](Direction dir) {
+                if(dir==Direction::Left) return Direction::Right;
+                if(dir==Direction::Right) return Direction::Left;
+                return dir;
+            };
+            check(reflected.direction==mirrorDirection(own.direction),"reflected node direction follows the artwork");
+            for(auto target:partById(1).nodes) {
+                auto opposite=[](Direction a,Direction b) {
+                    return (a==Direction::Up && b==Direction::Down) || (a==Direction::Down && b==Direction::Up) ||
+                           (a==Direction::Left && b==Direction::Right) || (a==Direction::Right && b==Direction::Left);
+                };
+                if(!opposite(own.direction,target.direction)) continue;
+                VABSystem build;
+                auto anchor=build.preview(1,0,0,false);
+                check(build.place(1,anchor,false),"place node test anchor");
+                GridPoint point{anchor.position.x+target.offset.x,anchor.position.y+target.offset.y};
+                GridPoint expected{point.x-own.offset.x,point.y-own.offset.y};
+                auto placement=build.preview(d.id,expected.x+w/2.0,expected.y+h/2.0,false,r,flip);
+                check(placement.valid && placement.snapped && placement.position.x==expected.x && placement.position.y==expected.y,"exact node drops snap flush at every orientation");
+                check(build.place(d.id,placement,false),"commit every exact node drop");
+            }
+        }
+    }
+    VABSystem distant;
+    for(double y:{-100000.0,100000.0}) {
+        auto p=distant.preview(1,100000.0,y,false);
+        check(p.valid && distant.place(1,p,false),"canvas remains buildable far from the reference axes");
+    }
     interactionTests();
     std::cout << "All construction and interaction tests passed.\n";
 }

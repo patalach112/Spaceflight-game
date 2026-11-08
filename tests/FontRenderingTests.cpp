@@ -37,6 +37,7 @@ bool IsMouseButtonPressed(int) { return false; }
 }
 int main() {
     ui::init();
+    assert(ui::pixelSize(8)==12 && ui::pixelSize(13.4f)==13 && ui::pixelSize(13.6f)==14 && ui::pixelSize(100)==96);
     ui::label("Test", 10.9f, -2.1f, 13.4f, {220,230,240,30});
     assert(loads == 1 && filters == 1 && position.x == 10 && position.y == -3);
     assert(tint.a == 255 && lastSize == 13);

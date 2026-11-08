@@ -168,7 +168,12 @@ void Game::workshop() {
     int count=0; for(const auto& d:partCatalog()) if(d.category==category_) ++count;
     // Compact flat rows: the vector part itself is the icon, without an inset
     // preview window. The whole row remains a drag target.
-    float tileHeight=72*s;
+    const float titlePixels=static_cast<float>(ui::pixelSize(12*s));
+    const float detailPixels=static_cast<float>(ui::pixelSize(11*s));
+    const float titleOffset=19*s;
+    const float detailGap=std::max(titlePixels+1,18*s);
+    const float extraGap=std::max(detailPixels+1,14*s);
+    const float tileHeight=std::max(72*s,titleOffset+detailGap+extraGap+detailPixels+3*s);
     float contentHeight=count*tileHeight;
     float maxScroll=std::max(0.0f,contentHeight-list.height);
     catalogScroll_=std::clamp(catalogScroll_,0.0f,maxScroll);
@@ -180,10 +185,15 @@ void Game::workshop() {
         if(hover) DrawRectangleRec(tile,Color{57,87,113,200});
         DrawLineEx({tile.x,tile.y+tile.height-1},{tile.x+tile.width,tile.y+tile.height-1},1,Color{59,82,103,150});
         Renderer::tilePart(d,rect(tile.x+4*s,tile.y+7*s,53*s,58*s));
-        ui::label(std::string(d.name),tile.x+63*s,tile.y+19*s,12*s,ui::text);
-        ui::label(number(d.dryMass,d.dryMass<1?2:1)+" t dry",tile.x+63*s,tile.y+37*s,11*s,ui::muted);
-        if(d.fuelCapacity>0) ui::label(number(d.fuelCapacity)+" t fuel",tile.x+63*s,tile.y+51*s,11*s,ui::muted);
-        else if(d.thrust>0) ui::label(number(d.thrust,0)+" kN "+(d.category==Category::Engines?"thrust":"RCS"),tile.x+63*s,tile.y+51*s,11*s,ui::muted);
+        // Labels are clamped to at least 12 physical pixels by ui::label.
+        // Keep their baselines separated even at the smallest UI scale.
+        float textX=tile.x+60*s, titleY=tile.y+titleOffset;
+        float detailY=titleY+detailGap;
+        float extraY=detailY+extraGap;
+        ui::label(std::string(d.name),textX,titleY,12*s,ui::text);
+        ui::label(number(d.dryMass,d.dryMass<1?2:1)+" t dry",textX,detailY,11*s,ui::muted);
+        if(d.fuelCapacity>0) ui::label(number(d.fuelCapacity)+" t fuel",textX,extraY,11*s,ui::muted);
+        else if(d.thrust>0) ui::label(number(d.thrust,0)+" kN "+(d.category==Category::Engines?"thrust":"RCS"),textX,extraY,11*s,ui::muted);
         if(hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { interaction_.choosePart(d.id); dragStart_=mouse; movedActually_=true; }
         tileY+=tileHeight;
     }
@@ -193,8 +203,9 @@ void Game::workshop() {
         float barY=list.y+(list.height-barHeight)*(catalogScroll_/maxScroll);
         DrawRectangleRec(rect(side-5*s,barY,2*s,barHeight),ui::muted);
     }
-    ui::label("Q / E  ROTATE",rail+10*s,h-57*s,12*s,ui::muted);
-    ui::label("MMB PAN  /  WHEEL ZOOM",rail+10*s,h-35*s,12*s,ui::muted);
+    ui::label("Q / E  ROTATE",rail+10*s,h-60*s,12*s,ui::muted);
+    ui::label("MMB  PAN",rail+10*s,h-42*s,12*s,ui::muted);
+    ui::label("WHEEL  ZOOM",rail+10*s,h-24*s,12*s,ui::muted);
 
     ui::box(rect(side,h-bottom,w-side,bottom),ui::panel,ui::line);
     Telemetry t=interaction_.telemetry(); float left=side+20*s,gap=(w-side-40*s)/4;
