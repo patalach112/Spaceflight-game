@@ -11,10 +11,12 @@ const std::vector<PartDef>& partCatalog() {
         {6, "4X4 FUEL TANK", Category::FuelTanks, 4, 4, 1.0, 9.0, 0, {{{2,0},Direction::Up},{{2,4},Direction::Down},{{0,2},Direction::Left},{{4,2},Direction::Right}}, PartShape::Tank},
         {1, "4X6 FUEL TANK", Category::FuelTanks, 4, 6, 1.5, 13.5, 0, {{{2,0},Direction::Up},{{2,6},Direction::Down},{{0,3},Direction::Left},{{4,3},Direction::Right}}, PartShape::Tank},
         {7, "4X8 FUEL TANK", Category::FuelTanks, 4, 8, 2.0, 18.0, 0, {{{2,0},Direction::Up},{{2,8},Direction::Down},{{0,4},Direction::Left},{{4,4},Direction::Right}}, PartShape::Tank},
-        {8, "VALIANT ENGINE", Category::Engines, 4, 3, 2.0, 0, 40*9.80665, {{{2,0},Direction::Up}}, PartShape::Engine},
-        {9, "TITAN ENGINE", Category::Engines, 6, 4, 12.0, 0, 400*9.80665, {{{3,0},Direction::Up}}, PartShape::Engine},
-        {2, "HAWK ENGINE", Category::Engines, 4, 3, 3.5, 0, 120*9.80665, {{{2,0},Direction::Up}}, PartShape::Engine},
-        {10, "FRONTIER ENGINE", Category::Engines, 6, 4, 6.0, 0, 100*9.80665, {{{3,0},Direction::Up}}, PartShape::Engine},
+        // Taller engine footprints keep the full-width mounting flange while
+        // giving the chamber and bell their intended vertical proportions.
+        {8, "VALIANT ENGINE", Category::Engines, 4, 6, 2.0, 0, 40*9.80665, {{{2,0},Direction::Up}}, PartShape::Engine},
+        {9, "TITAN ENGINE", Category::Engines, 6, 9, 12.0, 0, 400*9.80665, {{{3,0},Direction::Up}}, PartShape::Engine},
+        {2, "HAWK ENGINE", Category::Engines, 4, 6, 3.5, 0, 120*9.80665, {{{2,0},Direction::Up}}, PartShape::Engine},
+        {10, "FRONTIER ENGINE", Category::Engines, 6, 9, 6.0, 0, 100*9.80665, {{{3,0},Direction::Up}}, PartShape::Engine},
         {11, "KOLIBRI ENGINE", Category::Engines, 2, 3, .5, 0, 15*9.80665, {{{1,0},Direction::Up}}, PartShape::Engine},
         {12, "NOSE CONE", Category::Structural, 4, 4, .25, 0, 0, {{{2,4},Direction::Down}}, PartShape::NoseCone},
         {3, "SEPARATOR", Category::Structural, 4, 1, .4, 0, 0, {{{2,0},Direction::Up},{{2,1},Direction::Down}}, PartShape::Decoupler},
