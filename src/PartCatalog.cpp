@@ -90,8 +90,47 @@ const std::vector<PartDef>& partCatalog() {
         {80, "10W HOLLOW SHIELD", Category::Aerodynamics, 10, 1, 0.5, 0, 0, {{{5,0},Direction::Up},{{5,1},Direction::Down}}, PartShape::HollowShield},
         {81, "12W HOLLOW SHIELD", Category::Aerodynamics, 12, 1, 0.6, 0, 0, {{{6,0},Direction::Up},{{6,1},Direction::Down}}, PartShape::HollowShield},
         {82, "SIDE PARACHUTE", Category::Aerodynamics, 2, 2, .4, 0, 0, {{{0,1},Direction::Left}}, PartShape::SideChute},
+        {83, "4X2 FAIRING", Category::Fairings, 4, 2, 0.2, 0, 0, {{{2,0},Direction::Up},{{2,2},Direction::Down}}, PartShape::CargoFairing},
+        {84, "4X4 FAIRING", Category::Fairings, 4, 4, 0.4, 0, 0, {{{2,0},Direction::Up},{{2,4},Direction::Down}}, PartShape::CargoFairing},
+        {85, "4X6 FAIRING", Category::Fairings, 4, 6, 0.6, 0, 0, {{{2,0},Direction::Up},{{2,6},Direction::Down}}, PartShape::CargoFairing},
+        {86, "6X2 FAIRING", Category::Fairings, 6, 2, 0.3, 0, 0, {{{3,0},Direction::Up},{{3,2},Direction::Down}}, PartShape::CargoFairing},
+        {87, "6X4 FAIRING", Category::Fairings, 6, 4, 0.6, 0, 0, {{{3,0},Direction::Up},{{3,4},Direction::Down}}, PartShape::CargoFairing},
+        {88, "6X6 FAIRING", Category::Fairings, 6, 6, 0.9, 0, 0, {{{3,0},Direction::Up},{{3,6},Direction::Down}}, PartShape::CargoFairing},
+        {89, "8X2 FAIRING", Category::Fairings, 8, 2, 0.4, 0, 0, {{{4,0},Direction::Up},{{4,2},Direction::Down}}, PartShape::CargoFairing},
+        {90, "8X4 FAIRING", Category::Fairings, 8, 4, 0.8, 0, 0, {{{4,0},Direction::Up},{{4,4},Direction::Down}}, PartShape::CargoFairing},
+        {91, "8X6 FAIRING", Category::Fairings, 8, 6, 1.2, 0, 0, {{{4,0},Direction::Up},{{4,6},Direction::Down}}, PartShape::CargoFairing},
+        {92, "10X2 FAIRING", Category::Fairings, 10, 2, 0.5, 0, 0, {{{5,0},Direction::Up},{{5,2},Direction::Down}}, PartShape::CargoFairing},
+        {93, "10X4 FAIRING", Category::Fairings, 10, 4, 1, 0, 0, {{{5,0},Direction::Up},{{5,4},Direction::Down}}, PartShape::CargoFairing},
+        {94, "10X6 FAIRING", Category::Fairings, 10, 6, 1.5, 0, 0, {{{5,0},Direction::Up},{{5,6},Direction::Down}}, PartShape::CargoFairing},
+        {95, "12X2 FAIRING", Category::Fairings, 12, 2, 0.6, 0, 0, {{{6,0},Direction::Up},{{6,2},Direction::Down}}, PartShape::CargoFairing},
+        {96, "12X4 FAIRING", Category::Fairings, 12, 4, 1.2, 0, 0, {{{6,0},Direction::Up},{{6,4},Direction::Down}}, PartShape::CargoFairing},
+        {97, "12X6 FAIRING", Category::Fairings, 12, 6, 1.8, 0, 0, {{{6,0},Direction::Up},{{6,6},Direction::Down}}, PartShape::CargoFairing},
     };
     return catalog;
+}
+bool supportsDeployment(const PartDef& d) {
+    return d.shape==PartShape::SolarPanel || d.shape==PartShape::LandingLeg || d.shape==PartShape::HeavyLeg;
+}
+bool partInTab(const PartDef& d,CatalogTab tab) {
+    switch(tab) {
+        case CatalogTab::Basics:
+            return d.id==0 || d.id==19 || d.id==2 || d.id==8 || d.id==11 ||
+                   d.id==5 || d.id==6 || d.id==1 || d.id==7 || d.id==3 ||
+                   d.id==12 || d.id==13 || d.id==14 || d.id==20;
+        case CatalogTab::Wide6: case CatalogTab::Wide8: case CatalogTab::Wide10: case CatalogTab::Wide12: {
+            int width=tab==CatalogTab::Wide6?6:tab==CatalogTab::Wide8?8:tab==CatalogTab::Wide10?10:12;
+            bool sized=d.shape==PartShape::Tank || d.shape==PartShape::EngineBase || d.shape==PartShape::NoseCone ||
+                       d.shape==PartShape::Adapter || d.shape==PartShape::Decoupler || d.shape==PartShape::HeatShield ||
+                       d.shape==PartShape::HollowShield || d.shape==PartShape::Engine || d.shape==PartShape::CargoFairing ||
+                       d.shape==PartShape::Truss || d.shape==PartShape::Panel || d.shape==PartShape::DockingPort;
+            return sized && d.width==width;
+        }
+        case CatalogTab::Aerodynamics: return d.category==Category::Aerodynamics || d.shape==PartShape::Fairing || d.shape==PartShape::CargoFairing;
+        case CatalogTab::Fairings: return d.shape==PartShape::Fairing || d.shape==PartShape::CargoFairing;
+        case CatalogTab::Structural: return d.category==Category::Structural;
+        case CatalogTab::Other: return d.category==Category::Other || d.shape==PartShape::IonEngine || d.shape==PartShape::Rcs;
+    }
+    return false;
 }
 bool partInCategory(const PartDef& def, Category category) {
     return def.category==category || (category==Category::Engines && def.shape==PartShape::Rcs) ||

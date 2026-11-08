@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <utility>
 void check(bool condition, const char* message) { if (!condition) { std::cerr << "FAIL: " << message << '\n'; std::exit(1); } }
 void interactionTests();
 int main() {
@@ -131,7 +132,7 @@ int main() {
     VABSystem control;
     auto rcs=control.preview(15,0,10,false);
     check(control.place(15,rcs,false) && control.telemetry().thrust==0,"RCS thrust is not included in main engine TWR");
-    check(partCatalog().size()==83,"expanded catalog includes every implemented variant");
+    check(partCatalog().size()==98,"expanded catalog includes every implemented variant");
     for(auto category:{Category::Pods,Category::FuelTanks,Category::Engines,Category::Aerodynamics,Category::Fairings,Category::Structural,Category::Other}) {
         bool found=false; for(const auto& d:partCatalog()) found|=d.category==category;
         check(found,"each catalog tab contains parts");
@@ -139,6 +140,31 @@ int main() {
     check(partInCategory(partById(15),Category::Engines) && partInCategory(partById(15),Category::Other),"RCS is listed in engines and other");
     check(partInCategory(partById(69),Category::Engines) && partInCategory(partById(69),Category::Other),"ion engine is listed in engines and other");
     check(partInCategory(partById(4),Category::Pods) && partInCategory(partById(4),Category::Other),"probe is listed as both control and other");
+    for(auto tab:{CatalogTab::Basics,CatalogTab::Wide6,CatalogTab::Wide8,CatalogTab::Wide10,CatalogTab::Wide12,CatalogTab::Aerodynamics,CatalogTab::Fairings,CatalogTab::Structural,CatalogTab::Other}) {
+        bool found=false; for(const auto& d:partCatalog()) found|=partInTab(d,tab);
+        check(found,"every requested VAB tab has contents");
+    }
+    for(const auto& d:partCatalog()) {
+        bool visible=false;
+        for(auto tab:{CatalogTab::Basics,CatalogTab::Wide6,CatalogTab::Wide8,CatalogTab::Wide10,CatalogTab::Wide12,CatalogTab::Aerodynamics,CatalogTab::Fairings,CatalogTab::Structural,CatalogTab::Other}) visible|=partInTab(d,tab);
+        check(visible,"every catalog part is reachable through a tab");
+    }
+    for(auto tabWidth:{std::pair{CatalogTab::Wide6,6},std::pair{CatalogTab::Wide8,8},std::pair{CatalogTab::Wide10,10},std::pair{CatalogTab::Wide12,12}})
+        for(const auto& d:partCatalog()) if(partInTab(d,tabWidth.first)) check(d.width==tabWidth.second,"wide tab contains only matching widths");
+    for(int w:{4,6,8,10,12}) for(int h:{2,4,6}) {
+        bool found=false; for(const auto& d:partCatalog()) found|=d.shape==PartShape::CargoFairing && d.width==w && d.height==h && partInTab(d,CatalogTab::Fairings);
+        check(found,"cargo fairing exists for every requested width and height");
+    }
+    for(int id:{0,19,2,8,5,6,1,7,14}) check(partInTab(partById(id),CatalogTab::Basics),"starter parts are in Basics");
+    for(auto entry:{std::pair{CatalogTab::Wide6,59},std::pair{CatalogTab::Wide8,60},std::pair{CatalogTab::Wide12,61}}) check(partInTab(partById(entry.second),entry.first),"matching structural and docking parts are in width tabs");
+    for(int id:{15,21,66,67,69,74,75}) check(partInTab(partById(id),CatalogTab::Other),"utility parts are in Other");
+    for(int id:{14,68,74,75}) check(supportsDeployment(partById(id)),"legs and solar panels support deployment");
+    check(!supportsDeployment(partById(1)),"tanks cannot deploy");
+    VABSystem enclosure;
+    Placement shell{}; shell.position={0,0}; shell.valid=true;
+    check(enclosure.place(91,shell,false),"place cargo fairing");
+    Placement payload{}; payload.position={2,2}; payload.valid=true;
+    check(!enclosure.place(5,payload,false),"cargo fairing interior retains rectangular collision");
     for(int w:{6,8,10,12}) for(int h:{2,4,6,8,16}) {
         const PartDef* tank=nullptr;
         for(const auto& d:partCatalog()) if(d.shape==PartShape::Tank && d.width==w && d.height==h) tank=&d;

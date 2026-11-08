@@ -4,8 +4,9 @@
 #include <vector>
 
 enum class Category { Pods, FuelTanks, Engines, Structural, Aerodynamics, Fairings, Other };
+enum class CatalogTab { Basics, Wide6, Wide8, Wide10, Wide12, Aerodynamics, Fairings, Structural, Other };
 enum class Direction { Up, Down, Left, Right };
-enum class PartShape { Capsule, Probe, Tank, Engine, NoseCone, Decoupler, SideSeparator, LandingLeg, Rcs, Panel, Truss, SideNose, Parachute, HeatShield, DockingPort, Adapter, Wheel, HeavyLeg, IonEngine, Fairing, EngineBase, SolarPanel, Fin, HollowShield, SideChute };
+enum class PartShape { Capsule, Probe, Tank, Engine, NoseCone, Decoupler, SideSeparator, LandingLeg, Rcs, Panel, Truss, SideNose, Parachute, HeatShield, DockingPort, Adapter, Wheel, HeavyLeg, IonEngine, Fairing, EngineBase, SolarPanel, Fin, HollowShield, SideChute, CargoFairing };
 struct GridPoint { int x = 0; int y = 0; };
 struct AttachNode { GridPoint offset; Direction direction; };
 struct PartDef {
@@ -17,13 +18,15 @@ struct PartDef {
     std::vector<AttachNode> nodes;
     PartShape shape;
 };
-struct PartInstance { int defId; GridPoint position; unsigned long long uid; int rotation = 0; bool flipped = false; };
+struct PartInstance { int defId; GridPoint position; unsigned long long uid; int rotation = 0; bool flipped = false; bool deployed = false; };
 // Rotation is clockwise in 90 degree steps, around the part's bounding box.
 AEGIS_API int normalizedRotation(int rotation);
 AEGIS_API int partWidth(const PartDef& def, int rotation);
 AEGIS_API int partHeight(const PartDef& def, int rotation);
 AEGIS_API AttachNode rotatedNode(const PartDef& def, AttachNode node, int rotation, bool flipped = false);
 // A few parts intentionally appear in more than one catalog tab.
+AEGIS_API bool partInTab(const PartDef& def, CatalogTab tab);
+AEGIS_API bool supportsDeployment(const PartDef& def);
 AEGIS_API bool partInCategory(const PartDef& def, Category category);
 AEGIS_API const std::vector<PartDef>& partCatalog();
 AEGIS_API const PartDef& partById(int id);

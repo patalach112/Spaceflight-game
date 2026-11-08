@@ -90,11 +90,11 @@ void Game::workshop() {
     if(rightCancel) interaction_.cancel();
     float w=static_cast<float>(GetScreenWidth()),h=static_cast<float>(GetScreenHeight());
     float s=std::min(settings_.uiScale,std::min(w/900.0f,h/660.0f));
-    // Leave room for expanded catalog labels even at the minimum font size.
-    float side=320*s,rail=78*s,top=60*s,bottom=84*s;
+    // A narrow category rail and an icon-only catalog leave more room to build.
+    float side=148*s,rail=80*s,top=60*s,bottom=84*s;
     Rectangle area=rect(side,top,w-side,h-top-bottom);
-    Rectangle list=rect(rail,97*s,side-rail,h-164*s);
-    Rectangle tools=rect(side+14*s,top+12*s,332*s,42*s);
+    Rectangle list=rect(rail,48*s,side-rail,h-58*s);
+    Rectangle tools=rect(side+14*s,top+12*s,(interaction_.canToggleDeployment()?456:332)*s,42*s);
     Vector2 mouse=GetMousePosition(); bool inArea=CheckCollisionPointRec(mouse,area);
     bool overTools=CheckCollisionPointRec(mouse,tools);
     if(!viewInitialized_) { view_={side+area.width*.5f,top+area.height*.52f,1}; viewInitialized_=true; }
@@ -111,6 +111,7 @@ void Game::workshop() {
     }
     if(IsKeyPressed(KEY_Q) && interaction_.rotate(-1) && interaction_.moving()) movedActually_=true;
     if(IsKeyPressed(KEY_E) && interaction_.rotate(1) && interaction_.moving()) movedActually_=true;
+    if(IsKeyPressed(KEY_D) && interaction_.toggleDeployment() && interaction_.moving()) movedActually_=true;
     Vector2 grid=Renderer::toGrid(mouse,view_);
     if(inArea && !overTools && (IsKeyPressed(KEY_DELETE) || IsKeyPressed(KEY_BACKSPACE))) interaction_.eraseSelectedOrAt(grid.x,grid.y);
     if(inArea && !overTools && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !interaction_.active()) {
@@ -125,7 +126,7 @@ void Game::workshop() {
 
     Renderer::workspace(view_,rect(side,0,w-side,h));
     BeginScissorMode(static_cast<int>(area.x),static_cast<int>(area.y),static_cast<int>(area.width),static_cast<int>(area.height));
-    for(const auto& p:vab_.parts()) Renderer::part(partById(p.defId),p.position.x,p.position.y,p.rotation,view_,Color{255,255,255,255},p.uid==interaction_.selected(),p.flipped);
+    for(const auto& p:vab_.parts()) Renderer::part(partById(p.defId),p.position.x,p.position.y,p.rotation,view_,Color{255,255,255,255},p.uid==interaction_.selected(),p.flipped,p.deployed);
     if(showCenter_) {
         CenterOfMass c=interaction_.centerOfMass();
         if(c.mass>0) {
@@ -147,66 +148,49 @@ void Game::workshop() {
     if(ui::button(rect(bx+76*s,by,72*s,bh),"ROT >",s)) interaction_.rotate(1);
     if(ui::button(rect(bx+152*s,by,80*s,bh),"CLEAR",s)) interaction_.clear();
     if(ui::button(rect(bx+236*s,by,96*s,bh),"MASS",s,showCenter_)) showCenter_=!showCenter_;
+    if(interaction_.canToggleDeployment() && ui::button(rect(bx+336*s,by,120*s,bh),interaction_.deployed()?"STOW [D]":"DEPLOY [D]",s,interaction_.deployed())) {
+        if(interaction_.toggleDeployment() && interaction_.moving()) movedActually_=true;
+    }
 
     ui::box(rect(0,0,side,h),ui::panel,ui::line);
     DrawRectangleRec(rect(0,0,rail,h),Color{16,25,36,255});
-    ui::label("AEGIS",14*s,16*s,18*s,ui::text);
-    ui::label("PARTS",rail+14*s,17*s,17*s,ui::text);
-    ui::label("DRAG TO BUILD",rail+14*s,43*s,12*s,ui::muted);
+    ui::label("PARTS",10*s,17*s,14*s,ui::text);
     DrawLineEx({rail,0},{rail,h},1,ui::line);
-    DrawLineEx({rail,74*s},{side,74*s},1,ui::line);
-    const char* names[]={"PODS","TANKS","ENGINES","AERO","FAIRING","STRUCT","OTHER"};
-    Category cats[]={Category::Pods,Category::FuelTanks,Category::Engines,Category::Aerodynamics,Category::Fairings,Category::Structural,Category::Other};
-    for(int i=0;i<7;++i) {
-        Rectangle tab=rect(0,76*s+i*70*s,rail,68*s); bool active=category_==cats[i],hover=ui::hit(tab);
+    DrawLineEx({rail,42*s},{side,42*s},1,ui::line);
+    const char* names[]={"BASICS","6 WIDE","8 WIDE","10 WIDE","12 WIDE","AERO","FAIRINGS","STRUCT","OTHER"};
+    const char* fullNames[]={"BASICS","6 WIDE","8 WIDE","10 WIDE","12 WIDE","AERODYNAMICS","FAIRINGS","STRUCTURAL","OTHER / UTILITY"};
+    CatalogTab cats[]={CatalogTab::Basics,CatalogTab::Wide6,CatalogTab::Wide8,CatalogTab::Wide10,CatalogTab::Wide12,CatalogTab::Aerodynamics,CatalogTab::Fairings,CatalogTab::Structural,CatalogTab::Other};
+    int hoveredTab=-1;
+    for(int i=0;i<9;++i) {
+        Rectangle tab=rect(0,48*s+i*52*s,rail,50*s);
+        bool active=category_==cats[i],hover=ui::hit(tab);
         if(active || hover) DrawRectangleRec(tab,active?Color{43,69,87,255}:Color{38,55,70,255});
         if(active) DrawRectangle(0,static_cast<int>(tab.y),3,static_cast<int>(tab.height),ui::cyan);
-        Vector2 center{rail*.5f,tab.y+22*s}; Color icon=active?ui::cyan:ui::muted;
-        if(i==0) { DrawTriangle({center.x,center.y-10*s},{center.x-9*s,center.y+8*s},{center.x+9*s,center.y+8*s},icon); }
-        else if(i==1) { DrawRectangleLinesEx(rect(center.x-8*s,center.y-10*s,16*s,20*s),1.5f,icon); DrawLineEx({center.x-8*s,center.y-5*s},{center.x+8*s,center.y-5*s},1,icon); }
-        else if(i==2) {
-            DrawLineEx({center.x-10*s,center.y-9*s},{center.x+10*s,center.y-9*s},1,icon);
-            DrawLineEx({center.x-4*s,center.y-6*s},{center.x+4*s,center.y-6*s},1,icon);
-            DrawLineEx({center.x-3*s,center.y-6*s},{center.x-7*s,center.y+8*s},1,icon);
-            DrawLineEx({center.x+3*s,center.y-6*s},{center.x+7*s,center.y+8*s},1,icon);
-            DrawLineEx({center.x-7*s,center.y+8*s},{center.x+7*s,center.y+8*s},1,icon);
-        }
-        else if(i==3) { DrawLineEx({center.x,center.y-10*s},{center.x-9*s,center.y+8*s},1,icon); DrawLineEx({center.x,center.y-10*s},{center.x+9*s,center.y+8*s},1,icon); DrawLineEx({center.x-9*s,center.y+8*s},{center.x+9*s,center.y+8*s},1,icon); }
-        else if(i==4) { DrawLineEx({center.x-7*s,center.y-10*s},{center.x-7*s,center.y+10*s},1,icon); DrawLineEx({center.x+7*s,center.y-10*s},{center.x+7*s,center.y+10*s},1,icon); DrawLineEx({center.x-7*s,center.y-10*s},{center.x,center.y-5*s},1,icon); DrawLineEx({center.x+7*s,center.y-10*s},{center.x,center.y-5*s},1,icon); }
-        else if(i==5) { DrawRectangleLinesEx(rect(center.x-10*s,center.y-5*s,20*s,10*s),1.5f,icon); DrawLineEx({center.x-9*s,center.y-4*s},{center.x+9*s,center.y+4*s},1,icon); }
-        else { DrawCircleLinesV(center,8*s,icon); DrawCircleLinesV(center,3*s,icon); }
-        ui::label(names[i],8*s,tab.y+45*s,12*s,active?ui::text:ui::muted);
+        // Small, consistent category glyphs keep the rail readable without
+        // consuming the width of the icon-only part list.
+        Color icon=active?ui::cyan:ui::muted; float cx=rail*.5f,cy=tab.y+14*s;
+        if(i>=1 && i<=4) { DrawRectangleLinesEx(rect(cx-9*s,cy-6*s,18*s,12*s),1,icon); DrawLineEx({cx-9*s,cy},{cx+9*s,cy},1,icon); }
+        else if(i==0 || i==5) { DrawLineEx({cx,cy-7*s},{cx-8*s,cy+6*s},1,icon); DrawLineEx({cx,cy-7*s},{cx+8*s,cy+6*s},1,icon); DrawLineEx({cx-8*s,cy+6*s},{cx+8*s,cy+6*s},1,icon); }
+        else if(i==6) { DrawLineEx({cx-8*s,cy-7*s},{cx-8*s,cy+7*s},1,icon); DrawLineEx({cx+8*s,cy-7*s},{cx+8*s,cy+7*s},1,icon); DrawLineEx({cx-8*s,cy-7*s},{cx+8*s,cy-7*s},1,icon); }
+        else if(i==7) { DrawRectangleLinesEx(rect(cx-9*s,cy-5*s,18*s,10*s),1,icon); DrawLineEx({cx-8*s,cy-4*s},{cx+8*s,cy+4*s},1,icon); }
+        else DrawCircleLinesV({cx,cy},6*s,icon);
+        ui::label(names[i],6*s,tab.y+29*s,12*s,active?ui::text:ui::muted);
+        if(hover) hoveredTab=i;
         if(hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { category_=cats[i]; catalogScroll_=0; }
     }
-    int count=0; for(const auto& d:partCatalog()) if(partInCategory(d,category_)) ++count;
-    // Compact flat rows: the vector part itself is the icon, without an inset
-    // preview window. The whole row remains a drag target.
-    const float titlePixels=static_cast<float>(ui::pixelSize(12*s));
-    const float detailPixels=static_cast<float>(ui::pixelSize(11*s));
-    const float titleOffset=19*s;
-    const float detailGap=std::max(titlePixels+1,18*s);
-    const float extraGap=std::max(detailPixels+1,14*s);
-    const float tileHeight=std::max(72*s,titleOffset+detailGap+extraGap+detailPixels+3*s);
+    int count=0; for(const auto& d:partCatalog()) if(partInTab(d,category_)) ++count;
+    const float tileHeight=60*s;
     float contentHeight=count*tileHeight;
     float maxScroll=std::max(0.0f,contentHeight-list.height);
     catalogScroll_=std::clamp(catalogScroll_,0.0f,maxScroll);
+    const PartDef* hoveredPart=nullptr;
     BeginScissorMode(static_cast<int>(list.x),static_cast<int>(list.y),static_cast<int>(list.width),static_cast<int>(list.height));
     float tileY=list.y-catalogScroll_;
-    for(const auto& d:partCatalog()) if(partInCategory(d,category_)) {
-        Rectangle tile=rect(rail+4*s,tileY,side-rail-12*s,tileHeight);
+    for(const auto& d:partCatalog()) if(partInTab(d,category_)) {
+        Rectangle tile=rect(rail+3*s,tileY,side-rail-9*s,tileHeight);
         bool hover=CheckCollisionPointRec(mouse,list) && CheckCollisionPointRec(mouse,tile);
-        if(hover) DrawRectangleRec(tile,Color{45,64,81,255});
-        DrawLineEx({tile.x,tile.y+tile.height-1},{tile.x+tile.width,tile.y+tile.height-1},1,Color{56,73,89,255});
-        Renderer::tilePart(d,rect(tile.x+4*s,tile.y+7*s,53*s,58*s));
-        // Labels are clamped to at least 12 physical pixels by ui::label.
-        // Keep their baselines separated even at the smallest UI scale.
-        float textX=tile.x+60*s, titleY=tile.y+titleOffset;
-        float detailY=titleY+detailGap;
-        float extraY=detailY+extraGap;
-        ui::label(std::string(d.name),textX,titleY,12*s,ui::text);
-        ui::label(number(d.dryMass,d.dryMass<1?2:1)+" t dry",textX,detailY,11*s,ui::muted);
-        if(d.fuelCapacity>0) ui::label(number(d.fuelCapacity)+" t fuel",textX,extraY,11*s,ui::muted);
-        else if(d.thrust>0) ui::label(number(d.thrust,0)+" kN "+(d.category==Category::Engines?"thrust":"RCS"),textX,extraY,11*s,ui::muted);
+        if(hover) { DrawRectangleRec(tile,Color{45,64,81,255}); hoveredPart=&d; }
+        Renderer::tilePart(d,rect(tile.x+4*s,tile.y+3*s,tile.width-8*s,tileHeight-6*s),supportsDeployment(d));
         if(hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { interaction_.choosePart(d.id); dragStart_=mouse; movedActually_=true; }
         tileY+=tileHeight;
     }
@@ -214,11 +198,22 @@ void Game::workshop() {
     if(maxScroll>0) {
         float barHeight=std::max(18*s,list.height*list.height/contentHeight);
         float barY=list.y+(list.height-barHeight)*(catalogScroll_/maxScroll);
-        DrawRectangleRec(rect(side-5*s,barY,2*s,barHeight),ui::muted);
+        DrawRectangleRec(rect(side-4*s,barY,2*s,barHeight),ui::muted);
     }
-    ui::label("Q / E  ROTATE",rail+10*s,h-60*s,12*s,ui::muted);
-    ui::label("MMB  PAN",rail+10*s,h-42*s,12*s,ui::muted);
-    ui::label("WHEEL  ZOOM",rail+10*s,h-24*s,12*s,ui::muted);
+    // Details are shown only on hover; every row remains a single drag target.
+    if(!interaction_.active() && (hoveredPart || hoveredTab>=0)) {
+        float tipWidth=std::max(190*s,160.0f),tipHeight=hoveredPart?(supportsDeployment(*hoveredPart)?76:60)*s:32*s;
+        float tipY=std::clamp(mouse.y-tipHeight*.5f,top+4*s,h-bottom-tipHeight-4*s);
+        ui::box(rect(side+6*s,tipY,tipWidth,tipHeight),ui::panel,ui::line);
+        if(hoveredPart) {
+            ui::label(std::string(hoveredPart->name),side+14*s,tipY+6*s,12*s,ui::text);
+            std::string detail=std::to_string(hoveredPart->width)+" x "+std::to_string(hoveredPart->height)+"  /  "+number(hoveredPart->dryMass,1)+" t";
+            ui::label(detail,side+14*s,tipY+22*s,12*s,ui::muted);
+            if(hoveredPart->fuelCapacity>0) ui::label("FUEL  "+number(hoveredPart->fuelCapacity,1)+" t",side+14*s,tipY+38*s,12*s,ui::muted);
+            else if(hoveredPart->thrust>0) ui::label("THRUST  "+number(hoveredPart->thrust,1)+" kN",side+14*s,tipY+38*s,12*s,ui::muted);
+            if(supportsDeployment(*hoveredPart)) ui::label("D: DEPLOY / STOW",side+14*s,tipY+54*s,12*s,ui::cyan);
+        } else ui::label(fullNames[hoveredTab],side+14*s,tipY+8*s,12*s,ui::text);
+    }
 
     ui::box(rect(side,h-bottom,w-side,bottom),ui::panel,ui::line);
     Telemetry t=interaction_.telemetry(); float left=side+20*s,gap=(w-side-40*s)/4;
@@ -237,10 +232,10 @@ void Game::workshop() {
         bool snapped=inArea && p.snapped;
         double gx=snapped?p.position.x:interaction_.ghostX(grid.x), gy=snapped?p.position.y:interaction_.ghostY(grid.y);
         Color ghost=(!inArea || p.valid)?Color{150,220,255,180}:Color{255,128,125,180};
-        Renderer::part(d,gx,gy,rotation,view_,ghost,false,interaction_.flipped());
+        Renderer::part(d,gx,gy,rotation,view_,ghost,false,interaction_.flipped(),interaction_.deployed());
         double mirrored=-gx-width;
         bool drawMirror=inArea && symmetry_ && !interaction_.moving() && -p.position.x-width!=p.position.x;
-        if(drawMirror) Renderer::part(d,mirrored,gy,-rotation,view_,ghost,false,!interaction_.flipped());
+        if(drawMirror) Renderer::part(d,mirrored,gy,-rotation,view_,ghost,false,!interaction_.flipped(),interaction_.deployed());
         if(p.snapped && inArea) {
             Color indicator=p.valid?ui::cyan:ui::orange;
             DrawCircleLinesV(Renderer::toScreen(p.snapPoint.x,p.snapPoint.y,view_),7*s,indicator);

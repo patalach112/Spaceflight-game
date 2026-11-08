@@ -1,6 +1,6 @@
 #include "VABInteraction.hpp"
 void VABInteraction::choosePart(int id) {
-    partById(id); cancel(); selected_=0; dragId_=id; rotation_=0; flipped_=false;
+    partById(id); cancel(); selected_=0; dragId_=id; rotation_=0; flipped_=false; dragDeployed_=false;
 }
 Placement VABInteraction::preview(double x,double y,bool symmetry) const {
     if(!active()) return {};
@@ -25,11 +25,26 @@ CenterOfMass VABInteraction::centerOfMass() const {
     }
     return c;
 }
+bool VABInteraction::canToggleDeployment() const {
+    if(active()) return supportsDeployment(partById(dragId_));
+    const auto* p=system_.findById(selected_);
+    return p && supportsDeployment(partById(p->defId));
+}
+bool VABInteraction::deployed() const {
+    if(active()) return dragDeployed_;
+    const auto* p=system_.findById(selected_);
+    return p && p->deployed;
+}
+bool VABInteraction::toggleDeployment() {
+    if(!canToggleDeployment()) return false;
+    if(active()) { dragDeployed_=!dragDeployed_; return true; }
+    return system_.toggleDeploymentById(selected_);
+}
 bool VABInteraction::finishDrag(double x,double y,bool inWorkspace,bool symmetry,bool dragged) {
     if(!active()) return false;
     if(moved_ && !dragged) { cancel(); return false; }
     auto p=preview(x,y,symmetry);
-    bool placed=inWorkspace && system_.place(dragId_,p,symmetry && !moving());
+    bool placed=inWorkspace && system_.place(dragId_,p,symmetry && !moving(),dragDeployed_);
     if(placed) { moved_.reset(); selected_=0; dragId_=-1; offsetX_=offsetY_=0; }
     else cancel();
     return placed;
@@ -38,7 +53,7 @@ void VABInteraction::beginMove(double x,double y) {
     if(active()) return;
     moved_=system_.removeAt(x,y);
     if(!moved_) { selected_=0; return; }
-    dragId_=moved_->defId; rotation_=moved_->rotation; flipped_=moved_->flipped; selected_=moved_->uid;
+    dragId_=moved_->defId; rotation_=moved_->rotation; flipped_=moved_->flipped; dragDeployed_=moved_->deployed; selected_=moved_->uid;
     const auto& d=partById(dragId_);
     offsetX_=x-(moved_->position.x+partWidth(d,rotation_)/2.0);
     offsetY_=y-(moved_->position.y+partHeight(d,rotation_)/2.0);
@@ -53,7 +68,7 @@ bool VABInteraction::rotate(int direction) {
 }
 void VABInteraction::cancel() {
     if(moved_) { system_.restore(*moved_); moved_.reset(); }
-    dragId_=-1; rotation_=0; flipped_=false; offsetX_=offsetY_=0;
+    dragId_=-1; rotation_=0; flipped_=false; dragDeployed_=false; offsetX_=offsetY_=0;
 }
 void VABInteraction::clear() { cancel(); system_.clear(); selected_=0; }
 void VABInteraction::eraseSelectedOrAt(double x,double y) {
