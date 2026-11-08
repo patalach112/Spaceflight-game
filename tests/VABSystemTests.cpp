@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <iostream>
 void check(bool condition, const char* message) { if (!condition) { std::cerr << "FAIL: " << message << '\n'; std::exit(1); } }
+void interactionTests();
 int main() {
     VABSystem v;
     check(!v.preview(1,0,-4.6,false).snapped,"snap radius uses continuous cursor position");
@@ -33,7 +34,7 @@ int main() {
     check(!atomic.place(1,pendingPair,true) && atomic.parts().size()==1,"stale mirrored placement is atomic");
     VABSystem asymmetric;
     auto one=asymmetric.preview(1,5,-3,false); asymmetric.place(1,one,false);
-    check(!asymmetric.preview(0,5,-8,true).valid,"mirrored part requires its own support");
+    check(asymmetric.preview(0,5,-8,true).valid,"symmetry permits a clear grid position without support");
     VABSystem engine;
     auto engineBase=engine.preview(2,0,-1.5,false);
     check(engineBase.valid && engine.place(2,engineBase,false),"engine can be supported by the floor");
@@ -56,5 +57,6 @@ int main() {
     auto uid=collisions.parts()[0].uid;
     check(collisions.removeById(uid) && !collisions.removeById(uid), "selection deletion is by stable id");
     check(collisions.parts().empty(), "deletion removes exactly one part");
-    std::cout << "All construction tests passed.\n";
+    interactionTests();
+    std::cout << "All construction and interaction tests passed.\n";
 }

@@ -1,0 +1,8 @@
+if(RUNTIME_DLLS)
+  string(REPLACE "|" ";" dlls "${RUNTIME_DLLS}")
+  foreach(dll IN LISTS dlls)
+    if(EXISTS "${dll}")
+      file(COPY "${dll}" DESTINATION "${DESTINATION}")
+    endif()
+  endforeach()
+endif()

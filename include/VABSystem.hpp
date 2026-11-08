@@ -10,7 +10,7 @@ struct Placement {
     bool snapped = false;
     bool valid = false;
 };
-class VABSystem {
+class AEGIS_API VABSystem {
 public:
     const std::vector<PartInstance>& parts() const { return parts_; }
     // Cursor is in continuous grid coordinates, relative to the floor/axis origin.
@@ -26,5 +26,4 @@ private:
     unsigned long long nextUid_ = 1;
     bool nodeOccupied(GridPoint point, Direction direction) const;
     bool canPlace(int defId, GridPoint pos) const;
-    bool hasSupport(int defId, GridPoint pos) const;
 };

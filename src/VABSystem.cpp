@@ -26,24 +26,14 @@ bool VABSystem::canPlace(int defId, GridPoint pos) const {
     for (const auto& part : parts_) if (overlap(pos, def, part.position, partById(part.defId))) return false;
     return true;
 }
-bool VABSystem::hasSupport(int defId, GridPoint pos) const {
-    // The workshop floor can support any part at its geometric base, even an engine
-    // whose only physical attachment node is on top.
-    if (pos.y + partById(defId).height == 0) return true;
-    for (const auto& own : partById(defId).nodes) {
-        GridPoint p{pos.x + own.offset.x, pos.y + own.offset.y};
-        if (own.direction == Direction::Down && p.y == 0) return true;
-        for (const auto& part : parts_) for (const auto& node : partById(part.defId).nodes) {
-            GridPoint other{part.position.x + node.offset.x, part.position.y + node.offset.y};
-            if (same(p, other) && opposite(own.direction, node.direction) && !nodeOccupied(other, node.direction)) return true;
-        }
-    }
-    return false;
-}
 Placement VABSystem::preview(int defId, double cursorX, double cursorY, bool symmetry) const {
     const auto& def = partById(defId);
     GridPoint desired{static_cast<int>(std::round(cursorX - def.width / 2.0)), static_cast<int>(std::round(cursorY - def.height / 2.0))};
-    Placement result{desired, {}, false, false};
+    GridPoint initialMirror = mirror(desired, def);
+    bool gridValid = canPlace(defId, desired) && (!symmetry || same(desired, initialMirror) ||
+        (canPlace(defId, initialMirror) && !overlap(desired, def, initialMirror, def)));
+    Placement result{desired, {}, false, gridValid};
+    bool foundSnap = false;
     double best = 1.5 * 1.5; // magnetic radius, in grid units
     double bestInvalid = best;
     auto consider = [&](GridPoint target, const AttachNode& own, Direction targetDirection) {
@@ -55,13 +45,14 @@ Placement VABSystem::preview(int defId, double cursorX, double cursorY, bool sym
         if (distance > 1.5 * 1.5) return;
         GridPoint mirrored = mirror(pos, def);
         bool valid = canPlace(defId, pos) && (!symmetry || same(pos, mirrored) ||
-            (canPlace(defId, mirrored) && !overlap(pos, def, mirrored, def) && hasSupport(defId, mirrored)));
+            (canPlace(defId, mirrored) && !overlap(pos, def, mirrored, def)));
         if (!valid) {
-            if (!result.valid && distance <= bestInvalid) { bestInvalid = distance; result = {pos, target, true, false}; }
+            if (!foundSnap && !gridValid && distance <= bestInvalid) { bestInvalid = distance; result = {pos, target, true, false}; }
             return;
         }
         if (distance > best) return;
         best = distance;
+        foundSnap = true;
         result = {pos, target, true, true};
     };
     // Floor anchors are structural supports rather than attachment nodes on the part.
@@ -76,10 +67,10 @@ Placement VABSystem::preview(int defId, double cursorX, double cursorY, bool sym
     return result;
 }
 bool VABSystem::place(int defId, const Placement& p, bool symmetry) {
-    if (!p.valid || !p.snapped || !canPlace(defId, p.position) || !hasSupport(defId, p.position)) return false;
+    if (!p.valid || !canPlace(defId, p.position)) return false;
     const auto& def = partById(defId);
     GridPoint mirrored = mirror(p.position, def);
-    if (symmetry && !same(p.position, mirrored) && (!canPlace(defId, mirrored) || overlap(p.position, def, mirrored, def) || !hasSupport(defId, mirrored))) return false;
+    if (symmetry && !same(p.position, mirrored) && (!canPlace(defId, mirrored) || overlap(p.position, def, mirrored, def))) return false;
     parts_.push_back({defId, p.position, nextUid_++});
     if (symmetry && !same(p.position, mirrored)) parts_.push_back({defId, mirrored, nextUid_++});
     return true;

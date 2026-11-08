@@ -7,8 +7,8 @@ Color alpha(Color c, unsigned char a) { c.a = a; return c; }
 void line(Vector2 a, Vector2 b, float thickness, Color c) { DrawLineEx(a,b,thickness,c); }
 void shape(const PartDef& d, float x, float y, float w, float h, Color tint, bool selected) {
     const Color edge = selected ? ui::cyan : tint;
-    Color fill = alpha(Color{54,66,75,255}, tint.a);
-    Color detail = alpha(Color{133,153,163,255}, tint.a);
+    Color fill = alpha(Color{80,101,121,255}, tint.a);
+    Color detail = alpha(Color{176,196,211,255}, tint.a);
     float t = std::max(1.0f, w/60.0f);
     auto pt = [=](float px,float py) { return Vector2{x+px*w,y+py*h}; };
     auto segment = [&](float x1,float y1,float x2,float y2,Color c) { line(pt(x1,y1),pt(x2,y2),t,c); };
@@ -45,11 +45,11 @@ void Renderer::workspace(const Viewport& v, Rectangle area) {
     Vector2 lo=toGrid({area.x,area.y},v), hi=toGrid({area.x+area.width,area.y+area.height},v);
     int startX=static_cast<int>(std::floor(lo.x/stride))*stride, endX=static_cast<int>(std::ceil(hi.x/stride))*stride;
     int startY=static_cast<int>(std::floor(lo.y/stride))*stride, endY=static_cast<int>(std::ceil(hi.y/stride))*stride;
-    for(int x=startX;x<=endX;x+=stride) { float sx=toScreen(x,0,v).x; DrawLineV({sx,area.y},{sx,area.y+area.height},x%4==0?ui::line:Color{30,34,41,255}); }
-    for(int y=startY;y<=endY;y+=stride) { float sy=toScreen(0,y,v).y; DrawLineV({area.x,sy},{area.x+area.width,sy},y%4==0?ui::line:Color{30,34,41,255}); }
+    for(int x=startX;x<=endX;x+=stride) { float sx=toScreen(x,0,v).x; DrawLineV({sx,area.y},{sx,area.y+area.height},x%4==0?ui::line:ui::grid); }
+    for(int y=startY;y<=endY;y+=stride) { float sy=toScreen(0,y,v).y; DrawLineV({area.x,sy},{area.x+area.width,sy},y%4==0?ui::line:ui::grid); }
     float axis=toScreen(0,0,v).x, floor=toScreen(0,0,v).y;
-    DrawLineEx({axis,area.y},{axis,area.y+area.height},1.5f,Color{154,91,49,255});
-    DrawLineEx({area.x,floor},{area.x+area.width,floor},2,Color{104,121,128,255});
+    DrawLineEx({axis,area.y},{axis,area.y+area.height},1.5f,Color{84,159,217,255});
+    DrawLineEx({area.x,floor},{area.x+area.width,floor},2,Color{145,180,210,255});
     EndScissorMode();
 }
 void Renderer::part(const PartDef& d, GridPoint p, const Viewport& v, Color tint, bool selected) {
