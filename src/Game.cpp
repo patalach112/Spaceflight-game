@@ -37,9 +37,12 @@ void Game::menu() {
     DrawCircleLines(static_cast<int>(cx),static_cast<int>(cy),190*s,ui::line);
     DrawLineEx({cx,cy-230*s},{cx,cy+230*s},1,Color{75,118,159,255});
     DrawLineEx({cx-230*s,cy},{cx+230*s,cy},1,ui::line);
-    Renderer::tilePart(partById(0),rect(cx-45*s,cy-105*s,90*s,80*s));
-    Renderer::tilePart(partById(1),rect(cx-45*s,cy-25*s,90*s,100*s));
-    Renderer::tilePart(partById(2),rect(cx-45*s,cy+75*s,90*s,65*s));
+    // Use one grid scale for the entire decorative stack; fitting each part
+    // into a different tile would change their relative widths and leave gaps.
+    Viewport illustration{cx,cy+35*s,.6f*s};
+    Renderer::part(partById(0),-2,-10,0,illustration,ui::text);
+    Renderer::part(partById(1),-2,-6,0,illustration,ui::text);
+    Renderer::part(partById(2),-2,0,0,illustration,ui::text);
     float x=std::max(55.0f,w*.095f), y=h*.19f;
     ui::label("AEGIS  /  FLIGHT SYSTEMS",x,y,15*s,ui::cyan);
     ui::label("AEGIS:",x,y+55*s,48*s,ui::text);

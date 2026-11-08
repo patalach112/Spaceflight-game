@@ -37,9 +37,9 @@ int main() {
     auto one=asymmetric.preview(1,5,-3,false); asymmetric.place(1,one,false);
     check(asymmetric.preview(0,5,-8,true).valid,"symmetry permits a clear grid position without support");
     VABSystem engine;
-    auto engineBase=engine.preview(2,0,-1.5,false);
+    auto engineBase=engine.preview(2,0,-partById(2).height/2.0,false);
     check(engineBase.valid && engine.place(2,engineBase,false),"engine can touch the reference line");
-    auto tankAboveEngine=engine.preview(1,0,-6,false);
+    auto tankAboveEngine=engine.preview(1,0,-partById(2).height-3.0,false);
     check(tankAboveEngine.valid && engine.place(1,tankAboveEngine,false),"tank attaches above engine");
     auto powered=engine.telemetry();
     check(std::abs(powered.thrust-120.0*9.80665)<1e-8 && std::abs(powered.twr-120.0/18.5)<1e-8,"powered telemetry");
@@ -62,7 +62,7 @@ int main() {
     auto elevated=flush.preview(1,0,-12,false); check(flush.place(1,elevated,false),"place elevated tank");
     auto nose=flush.preview(0,0,-17,false); check(nose.valid && nose.snapped && flush.place(0,nose,false),"pod snaps to tank");
     check(flush.parts()[1].position.y + partHeight(partById(0),0) == flush.parts()[0].position.y,"pod bottom meets tank top exactly");
-    auto motor=flush.preview(2,0,-7.5,false); check(motor.valid && motor.snapped && flush.place(2,motor,false),"engine snaps to tank bottom");
+    auto motor=flush.preview(2,0,-9.0+partById(2).height/2.0,false); check(motor.valid && motor.snapped && flush.place(2,motor,false),"engine snaps to tank bottom");
     check(flush.parts()[0].position.y+partHeight(partById(1),0)==flush.parts()[2].position.y,"engine top meets tank bottom exactly");
     auto massCenter=flush.centerOfMass(); check(massCenter.mass>0 && std::abs(massCenter.x)<1e-8,"center of mass uses grid centers and mass");
     const auto& tank=partById(1); auto rotated=rotatedNode(tank,tank.nodes[0],1);
@@ -99,7 +99,7 @@ int main() {
     VABSystem lineNodes;
     auto upperTank=lineNodes.preview(1,0,-3,false);
     check(lineNodes.place(1,upperTank,false),"place tank touching line");
-    auto lowerEngine=lineNodes.preview(2,0,1.5,false);
+    auto lowerEngine=lineNodes.preview(2,0,partById(2).height/2.0,false);
     check(lowerEngine.valid && lowerEngine.snapped && lowerEngine.position.y==0 && lineNodes.place(2,lowerEngine,false),"free downward node on reference line snaps below it");
     VABSystem radialSnap;
     auto radialTank=radialSnap.preview(1,0,0,false);
@@ -134,6 +134,23 @@ int main() {
     check(partCatalog().size()>=22,"core catalog is populated");
     check(partById(5).height<partById(6).height && partById(6).height<partById(1).height && partById(1).height<partById(7).height,"tank sizes increase");
     for(int id:{5,6,1,7}) { const auto& tankDef=partById(id); check(std::abs(tankDef.fuelCapacity/(tankDef.dryMass+tankDef.fuelCapacity)-.9)<1e-8,"tank mass is 90 percent fuel"); }
+    for(int id:{8,9,2,10,11}) {
+        const auto& d=partById(id);
+        check(d.height>d.width && d.height*2==d.width*3,"engine bounds have a tall, consistent aspect ratio");
+        check(partWidth(d,1)==d.height && partHeight(d,1)==d.width,"rotated engine occupancy uses corrected bounds");
+        for(int r:{0,1}) {
+            VABSystem bounds;
+            auto firstEngine=bounds.preview(id,50,50,false,r);
+            check(firstEngine.valid && bounds.place(id,firstEngine,false),"place engine for collision bounds");
+            int w=partWidth(d,r),h=partHeight(d,r);
+            double cx=firstEngine.position.x+w/2.0,cy=firstEngine.position.y+h/2.0;
+            double dx=r ? w : 0,dy=r ? 0 : h;
+            check(!bounds.preview(id,cx+dx-(r?1:0),cy+dy-(r?0:1),false,r).valid,
+                  "engine collision covers its corrected full extent");
+            check(bounds.preview(id,cx+dx,cy+dy,false,r).valid,
+                  "engine bounds can touch without overlap");
+        }
+    }
     struct EngineReference { int id; const char* name; double mass, thrustTf; };
     for(const auto& expected: {EngineReference{8,"VALIANT ENGINE",2.0,40}, {9,"TITAN ENGINE",12.0,400},
                                {2,"HAWK ENGINE",3.5,120}, {10,"FRONTIER ENGINE",6.0,100},

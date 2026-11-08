@@ -27,12 +27,17 @@ unsigned int activeTexture=0;
 bool recording=false;
 float normX=0,normY=0,normW=1,normH=1;
 std::ostringstream signature;
+std::vector<float> normalizedGeometry;
 void xy(Vector2 p) {
     float x=(p.x-normX)/normW,y=(p.y-normY)/normH;
     assert(x>=-.001f && x<=1.001f && y>=-.001f && y<=1.001f);
     signature << x << ',' << y << ';';
+    normalizedGeometry.push_back(x); normalizedGeometry.push_back(y);
 }
-void box(Rectangle r) { xy({r.x,r.y}); signature << r.width/normW << ',' << r.height/normH << ';'; }
+void box(Rectangle r) {
+    xy({r.x,r.y}); signature << r.width/normW << ',' << r.height/normH << ';';
+    normalizedGeometry.push_back(r.width/normW); normalizedGeometry.push_back(r.height/normH);
+}
 bool near(float a, float b) { return std::abs(a-b)<0.001f; }
 bool equal(Vector2 a, Vector2 b) { return near(a.x,b.x) && near(a.y,b.y); }
 bool equal(Color a, Color b) { return a.r==b.r && a.g==b.g && a.b==b.b && a.a==b.a; }
@@ -66,7 +71,7 @@ void DrawLineV(Vector2,Vector2,Color) {}
 void DrawTriangle(Vector2 a,Vector2 b,Vector2 c,Color color) { triangles.push_back({a,b,c,color}); assert((b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x)<=0.001f); if(recording) { signature << "triangle;"; xy(a); xy(b); xy(c); } }
 void DrawRectangleRec(Rectangle r,Color) { if(recording) { signature << "rect;"; box(r); } }
 void DrawRectangleGradientEx(Rectangle rect,Color a,Color,Color,Color d) { gradientBands.push_back(rect); bandColors.push_back(a); bandColors.push_back(d); if(recording) { signature << "gradient;"; box(rect); } }
-void DrawCircleV(Vector2 p,float r,Color) { ++circles; if(recording) { signature << "circle;"; xy(p); signature << r/std::min(normW,normH) << ';'; } }
+void DrawCircleV(Vector2 p,float r,Color) { ++circles; if(recording) { signature << "circle;"; xy(p); signature << r/std::min(normW,normH) << ';'; normalizedGeometry.push_back(r/std::min(normW,normH)); } }
 void DrawCircleLinesV(Vector2,float,Color) {}
 void DrawRectangleLinesEx(Rectangle,float,Color) {}
 void BeginScissorMode(int,int,int,int) { ++scissors; }
@@ -106,7 +111,7 @@ int main() {
     assert(vertices.size()==24*4*4);
     for (const auto& vertex : vertices) {
         assert(vertex.position.x>=0 && vertex.position.x<=80);
-        assert(vertex.position.y>=0 && vertex.position.y<=60);
+        assert(vertex.position.y>=0 && vertex.position.y<=partById(2).height*20);
     }
     bool steelEdge=false, steelBody=false;
     for(auto c:bandColors) { steelEdge|=c.r==104 && c.g==109 && c.b==113; steelBody|=c.r==177 && c.g==182 && c.b==183; }
@@ -130,6 +135,9 @@ int main() {
             case 11:expected={{.39f,.10f},{.53f,.16f},{.77f,.28f},{.96f,.34f}}; break;
         }
         assert(expected.size()==static_cast<std::size_t>(rows+1));
+        float bellHeight=(expected.back().y-expected.front().y)*h;
+        float bellWidth=2*expected.back().half*w;
+        assert(bellHeight>=bellWidth*.98f); // a long bell, not a squashed cone
         assert(vertices.size()==static_cast<std::size_t>(rows*24*4) && triangles.size()>=6*32);
         // Mounting plates and plumbing must differ, not just bell scale or tone.
         assert(gradientBands.size()==static_cast<std::size_t>((id==9 || id==10 ? 4 : 2)*3));
@@ -226,6 +234,39 @@ int main() {
     assert(scissors==0); // tile rendering must preserve its caller's list scissor
     assert(pushes==pops && pushes==static_cast<int>(partCatalog().size())*4);
     assert(cullOff==pushes && cullOn==pushes && flushes==2*pushes);
+
+    // Geometry must be identical after removing one uniform scale and offset,
+    // regardless of whether it is drawn in the VAB or in a wide/tall tile.
+    // This compares all emitted coordinates, not merely the outer rectangle.
+    for(const auto& d:partCatalog()) {
+        normX=normY=0; normW=d.width*20.0f; normH=d.height*20.0f;
+        normalizedGeometry.clear(); signature.str(""); signature.clear(); recording=true;
+        Renderer::part(d,0,0,0,view,white);
+        recording=false;
+        const auto reference=normalizedGeometry;
+        assert(!reference.empty());
+        auto matches=[&] {
+            assert(reference.size()==normalizedGeometry.size());
+            for(std::size_t i=0;i<reference.size();++i)
+                assert(std::abs(reference[i]-normalizedGeometry[i])<0.00002f);
+        };
+        for(float zoom:{.5f,1.0f,3.5f}) {
+            normX=normY=0; normW=d.width*20*zoom; normH=d.height*20*zoom;
+            normalizedGeometry.clear(); recording=true;
+            Renderer::part(d,0,0,0,Viewport{0,0,zoom},white);
+            recording=false;
+            matches();
+        }
+        for(Rectangle area: {Rectangle{17,31,800,1000},Rectangle{17,31,1100,440},Rectangle{17,31,440,1100}}) {
+            float unit=std::min(area.width/(d.width+1.0f),area.height/(d.height+1.0f));
+            normW=d.width*unit; normH=d.height*unit;
+            normX=area.x+(area.width-normW)/2; normY=area.y+(area.height-normH)/2;
+            normalizedGeometry.clear(); recording=true;
+            Renderer::tilePart(d,area);
+            recording=false;
+            matches();
+        }
+    }
     lines.clear(); Renderer::workspace(view,{-100,-100,200,200});
     for(const auto& line:lines) assert(!(near(line.a.y,line.b.y) && line.width>1)); // no ground barrier
     std::cout << "22 unique vector designs, white-pixel meshes, attachment faces and reflection passed\n";
