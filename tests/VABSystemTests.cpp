@@ -122,13 +122,32 @@ int main() {
     check(radialInput.moving() && radialInput.flipped(),"moving a mirrored part preserves its reflection");
     radialInput.cancel();
     check(radialPair.parts().back().flipped,"cancel restores mirrored part");
+    VABSystem capsuleStack;
+    auto baseCapsule=capsuleStack.preview(0,0,0,false);
+    check(capsuleStack.place(0,baseCapsule,false),"place capsule for top attachment");
+    auto chute=capsuleStack.preview(19,0,-2.5,false);
+    check(chute.valid && chute.snapped && capsuleStack.place(19,chute,false),"parachute attaches flush to capsule crown");
+    check(capsuleStack.parts()[1].position.y+partById(19).height==capsuleStack.parts()[0].position.y,"capsule top and parachute bottom meet exactly");
     VABSystem control;
     auto rcs=control.preview(15,0,10,false);
     check(control.place(15,rcs,false) && control.telemetry().thrust==0,"RCS thrust is not included in main engine TWR");
     check(partCatalog().size()>=22,"core catalog is populated");
     check(partById(5).height<partById(6).height && partById(6).height<partById(1).height && partById(1).height<partById(7).height,"tank sizes increase");
     for(int id:{5,6,1,7}) { const auto& tankDef=partById(id); check(std::abs(tankDef.fuelCapacity/(tankDef.dryMass+tankDef.fuelCapacity)-.9)<1e-8,"tank mass is 90 percent fuel"); }
-    check(std::abs(partById(8).thrust/9.80665-40)<1e-8 && std::abs(partById(9).thrust/9.80665-400)<1e-8 && std::abs(partById(11).thrust/9.80665-15)<1e-8,"engine thrust converts tonne-force to kN");
+    struct EngineReference { int id; const char* name; double mass, thrustTf; };
+    for(const auto& expected: {EngineReference{8,"VALIANT ENGINE",2.0,40}, {9,"TITAN ENGINE",12.0,400},
+                               {2,"HAWK ENGINE",3.5,120}, {10,"FRONTIER ENGINE",6.0,100},
+                               {11,"KOLIBRI ENGINE",.5,15}}) {
+        const auto& engine=partById(expected.id);
+        check(engine.name==expected.name && engine.dryMass==expected.mass &&
+              std::abs(engine.thrust/9.80665-expected.thrustTf)<1e-8,
+              "engine names, masses and community thrust figures");
+    }
+    check(partById(12).width==4 && partById(12).height==4,"four-wide aerodynamic nose dimensions");
+    struct MassReference { int id; double mass; };
+    for(const auto& expected:{MassReference{12,.25}, {3,.4}, {13,.2}, {14,.5}, {15,.05},
+                              {16,.2}, {18,.25}, {19,.4}, {20,.25}, {21,.19}})
+        check(std::abs(partById(expected.id).dryMass-expected.mass)<1e-8,"community-reference utility mass");
     for(const auto& d:partCatalog()) {
         check(d.width>0 && d.height>0 && d.dryMass>=0 && d.fuelCapacity>=0 && d.thrust>=0,"valid catalog definition");
         check(&partById(d.id)==&d,"catalog ids are unique");

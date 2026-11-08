@@ -87,7 +87,7 @@ void Game::workshop() {
     if(rightCancel) interaction_.cancel();
     float w=static_cast<float>(GetScreenWidth()),h=static_cast<float>(GetScreenHeight());
     float s=std::min(settings_.uiScale,std::min(w/900.0f,h/660.0f));
-    float side=280*s,rail=78*s,top=60*s,bottom=84*s;
+    float side=300*s,rail=78*s,top=60*s,bottom=84*s;
     Rectangle area=rect(side,top,w-side,h-top-bottom);
     Rectangle list=rect(rail,97*s,side-rail,h-164*s);
     Rectangle tools=rect(side+14*s,top+12*s,332*s,42*s);
