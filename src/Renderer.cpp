@@ -438,22 +438,6 @@ void sideSeparator(const Canvas& c) {
     c.line(.06f,.17f,.06f,.83f,c.bright()); c.line(.94f,.17f,.94f,.83f,c.seam());
     c.bolt(.21f,.28f); c.bolt(.21f,.72f); c.bolt(.79f,.28f); c.bolt(.79f,.72f);
 }
-void landingLeg(const Canvas& c) {
-    // Bracket, articulated upper link, telescoping piston and wide foot pad.
-    c.plate(0,.15f,.19f,.73f);
-    c.poly({{.12f,.21f},{.24f,.20f},{.69f,.71f},{.57f,.75f}},tinted({117,139,154,255},c.tint));
-    c.outline({{.12f,.21f},{.24f,.20f},{.69f,.71f},{.57f,.75f}},c.ink());
-    c.poly({{.14f,.56f},{.21f,.51f},{.58f,.76f},{.53f,.81f}},c.dark());
-    c.outline({{.14f,.56f},{.21f,.51f},{.58f,.76f},{.53f,.81f}},c.ink());
-    c.line(.18f,.53f,.54f,.78f,c.bright());
-    c.poly({{.57f,.70f},{.66f,.69f},{.76f,.87f},{.67f,.88f}},tinted({145,160,168,255},c.tint));
-    c.outline({{.57f,.70f},{.66f,.69f},{.76f,.87f},{.67f,.88f}},c.ink());
-    c.circle(.18f,.24f,.095f,c.ink()); c.circle(.18f,.24f,.050f,c.bright());
-    c.circle(.62f,.73f,.075f,c.ink()); c.circle(.62f,.73f,.035f,c.bright());
-    c.poly({{.52f,.87f},{.88f,.87f},{1,.96f},{.46f,.96f}},c.dark());
-    c.outline({{.52f,.87f},{.88f,.87f},{1,.96f},{.46f,.96f}},c.ink());
-    c.line(.52f,.88f,.88f,.88f,c.bright());
-}
 void rcs(const Canvas& c) {
     // Compact central manifold with three individually outlined outlets.
     c.plate(.18f,.27f,.56f,.73f);
@@ -567,19 +551,6 @@ void wheel(const Canvas& c,const PartDef& d) {
         float a=tau*i/4; c.circle(.52f+.15f*std::cos(a),.5f+.15f*std::sin(a),.022f,c.ink());
     }
 }
-void heavyLeg(const Canvas& c) {
-    c.plate(0,.23f,.18f,.68f);
-    c.poly({{.12f,.28f},{.25f,.25f},{.72f,.72f},{.61f,.79f}},tinted({119,138,153,255},c.tint));
-    c.outline({{.12f,.28f},{.25f,.25f},{.72f,.72f},{.61f,.79f}},c.ink());
-    c.poly({{.14f,.59f},{.23f,.55f},{.59f,.79f},{.53f,.84f}},c.dark());
-    c.outline({{.14f,.59f},{.23f,.55f},{.59f,.79f},{.53f,.84f}},c.ink());
-    c.line(.18f,.58f,.55f,.81f,c.bright());
-    c.circle(.18f,.32f,.065f,c.ink()); c.circle(.18f,.32f,.032f,c.bright());
-    c.circle(.64f,.75f,.055f,c.ink()); c.circle(.64f,.75f,.025f,c.bright());
-    c.poly({{.52f,.85f},{.83f,.85f},{.98f,.96f},{.42f,.96f}},c.dark());
-    c.outline({{.52f,.85f},{.83f,.85f},{.98f,.96f},{.42f,.96f}},c.ink());
-    c.line(.52f,.87f,.83f,.87f,c.bright());
-}
 void ionEngine(const Canvas& c) {
     c.plate(0,0,1,.16f); c.plate(.20f,.16f,.80f,.34f);
     c.poly({{.27f,.34f},{.73f,.34f},{.85f,.86f},{.15f,.86f}},tinted({90,108,125,255},c.tint));
@@ -613,15 +584,6 @@ void engineBase(const Canvas& c,const PartDef& d) {
     }
     for(int i=1;i<d.width/2;++i) c.line(static_cast<float>(i)/(d.width/2),.15f,static_cast<float>(i)/(d.width/2),.72f,c.seam());
 }
-void solarPanel(const Canvas& c,const PartDef& d) {
-    c.plate(0,.42f,.15f,.58f);
-    c.rect(.14f,.03f,.82f,.94f,tinted({38,65,91,255},c.tint));
-    c.frame(.14f,.03f,.96f,.97f,c.ink());
-    c.line(.16f,.05f,.94f,.05f,c.bright());
-    int columns=d.width,rows=d.height;
-    for(int i=1;i<columns;++i) { float x=.14f+.82f*i/columns; c.line(x,.04f,x,.96f,c.seam()); }
-    for(int i=1;i<rows;++i) { float y=.03f+.94f*i/rows; c.line(.15f,y,.95f,y,c.seam()); }
-}
 void fin(const Canvas& c,const PartDef& d) {
     float tip=d.width==2?.92f:.98f;
     c.poly({{0,.20f},{.19f,.28f},{tip,.84f},{tip,.96f},{0,.96f}},tinted({139,157,169,255},c.tint));
@@ -645,23 +607,6 @@ void sideChute(const Canvas& c) {
     c.line(.47f,.20f,.47f,.80f,c.seam()); c.line(.65f,.20f,.65f,.80f,c.seam());
     c.line(.33f,.27f,.84f,.27f,c.bright());
 }
-void stowedLeg(const Canvas& c,const PartDef& d) {
-    c.plate(0,.23f,.18f,.68f);
-    c.poly({{.12f,.20f},{.31f,.20f},{.44f,.72f},{.28f,.76f}},tinted({119,138,153,255},c.tint));
-    c.outline({{.12f,.20f},{.31f,.20f},{.44f,.72f},{.28f,.76f}},c.ink());
-    c.line(.19f,.30f,.34f,.69f,c.bright());
-    c.circle(.18f,.30f,.06f,c.ink()); c.circle(.18f,.30f,.03f,c.bright());
-    c.poly({{.24f,.73f},{.43f,.73f},{.52f,.82f},{.22f,.82f}},c.dark());
-    c.outline({{.24f,.73f},{.43f,.73f},{.52f,.82f},{.22f,.82f}},c.ink());
-    if(d.shape==PartShape::HeavyLeg) c.line(.24f,.37f,.37f,.67f,c.seam());
-}
-void stowedSolar(const Canvas& c,const PartDef& d) {
-    c.plate(0,.42f,.16f,.58f);
-    c.plate(.14f,.19f,.30f,.81f);
-    c.rect(.17f,.23f,.10f,.54f,tinted({38,65,91,255},c.tint));
-    c.frame(.17f,.23f,.27f,.77f,c.ink());
-    for(int i=1;i<d.height;++i) { float y=.23f+.54f*i/d.height; c.line(.18f,y,.26f,y,c.seam()); }
-}
 void cargoFairing(const Canvas& c,const PartDef& d) {
     // Separate shell walls with a hollow centre. Collision remains the part's
     // rectangular construction footprint, as for other catalog pieces.
@@ -677,7 +622,43 @@ void cargoFairing(const Canvas& c,const PartDef& d) {
         c.line(x,.01f,x,.07f,c.seam());
     }
 }
-void shape(const PartDef& d,float x,float y,float w,float h,Color tint,bool selected,bool deployed) {
+void deployable(const Canvas& c,const PartDef& d,double progress,bool selected) {
+    const auto pieces=deploymentGeometry(d,progress);
+    for(const auto& piece:pieces) {
+        const auto& v=piece.vertices;
+        if(piece.material==GeometryMaterial::Mount) {
+            c.plate(static_cast<float>(v[0].x),static_cast<float>(v[0].y),static_cast<float>(v[2].x),static_cast<float>(v[2].y));
+            c.circle(.09f,.50f,.022f,c.ink()); c.circle(.09f,.50f,.010f,c.bright());
+        } else {
+            Color fill=piece.material==GeometryMaterial::Solar?tinted({38,65,91,255},c.tint):
+                       piece.material==GeometryMaterial::Arm?tinted({119,138,153,255},c.tint):c.dark();
+            auto point=[&](int i) { return c.p(static_cast<float>(v[i].x),static_cast<float>(v[i].y)); };
+            Vector2 a=point(0),b=point(1),q=point(2),r=point(3);
+            auto triangle=[&](Vector2 x,Vector2 y,Vector2 z) {
+                if((y.x-x.x)*(z.y-x.y)-(y.y-x.y)*(z.x-x.x)>0) std::swap(y,z);
+                DrawTriangle(x,y,z,fill);
+            };
+            triangle(a,b,q); triangle(a,q,r);
+            for(int i=0;i<4;++i) DrawLineEx(point(i),point((i+1)%4),1,c.ink());
+            if(piece.material==GeometryMaterial::Arm || piece.material==GeometryMaterial::Link) {
+                auto inset=[](GeometryPoint a,GeometryPoint b,double t) { return GeometryPoint{a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t}; };
+                auto a=inset(v[0],v[1],.27),b=inset(v[3],v[2],.27);
+                c.line(static_cast<float>(a.x),static_cast<float>(a.y),static_cast<float>(b.x),static_cast<float>(b.y),c.bright());
+            }
+            if(piece.material==GeometryMaterial::Solar) {
+                float left=static_cast<float>(v[0].x),right=static_cast<float>(v[1].x);
+                float top=static_cast<float>(v[0].y),bottom=static_cast<float>(v[2].y);
+                for(int i=1;i<d.width;++i) { float x=left+(right-left)*i/d.width; c.line(x,top,x,bottom,c.seam()); }
+                for(int i=1;i<d.height;++i) { float y=top+(bottom-top)*i/d.height; c.line(left,y,right,y,c.seam()); }
+            }
+        }
+    }
+    if(selected) for(const auto& piece:pieces) for(int i=0;i<4;++i) {
+        const auto& a=piece.vertices[i]; const auto& b=piece.vertices[(i+1)%4];
+        c.line(static_cast<float>(a.x),static_cast<float>(a.y),static_cast<float>(b.x),static_cast<float>(b.y),tinted(ui::cyan,c.tint));
+    }
+}
+void shape(const PartDef& d,float x,float y,float w,float h,Color tint,bool selected,double progress) {
     Canvas c{x,y,w,h,tint,materialFor(d.id)};
     // Exhaustive dispatch: no structural fallback is allowed to silently
     // render an unrelated part. Catalog variants have explicit parameters.
@@ -695,7 +676,7 @@ void shape(const PartDef& d,float x,float y,float w,float h,Color tint,bool sele
             if(d.id>=22) for(int i=1;i<d.width/2;++i) c.bolt(static_cast<float>(i)/(d.width/2),.75f);
             break;
         case PartShape::SideSeparator: sideSeparator(c); break;
-        case PartShape::LandingLeg: if(deployed) landingLeg(c); else stowedLeg(c,d); break;
+        case PartShape::LandingLeg: deployable(c,d,progress,selected); break;
         case PartShape::Rcs: rcs(c); break;
         case PartShape::Panel: panel(c); break;
         case PartShape::Truss:
@@ -714,17 +695,17 @@ void shape(const PartDef& d,float x,float y,float w,float h,Color tint,bool sele
             break;
         case PartShape::Adapter: adapter(c,d); break;
         case PartShape::Wheel: wheel(c,d); break;
-        case PartShape::HeavyLeg: if(deployed) heavyLeg(c); else stowedLeg(c,d); break;
+        case PartShape::HeavyLeg: deployable(c,d,progress,selected); break;
         case PartShape::IonEngine: ionEngine(c); break;
         case PartShape::Fairing: fairing(c,d); break;
         case PartShape::EngineBase: engineBase(c,d); break;
-        case PartShape::SolarPanel: if(deployed) solarPanel(c,d); else stowedSolar(c,d); break;
+        case PartShape::SolarPanel: deployable(c,d,progress,selected); break;
         case PartShape::Fin: fin(c,d); break;
         case PartShape::HollowShield: hollowShield(c,d); break;
         case PartShape::SideChute: sideChute(c); break;
         case PartShape::CargoFairing: cargoFairing(c,d); break;
     }
-    if(selected) DrawRectangleLinesEx({x,y,w,h},1.0f,tinted(ui::cyan,tint));
+    if(selected && !supportsDeployment(d)) DrawRectangleLinesEx({x,y,w,h},1.0f,tinted(ui::cyan,tint));
 }
 }
 Vector2 Renderer::toScreen(double gx,double gy,const Viewport& v) { return {v.originX+static_cast<float>(gx)*20*v.zoom,v.originY+static_cast<float>(gy)*20*v.zoom}; }
@@ -747,7 +728,7 @@ void Renderer::workspace(const Viewport& v,Rectangle area) {
     DrawLineEx({axis,area.y},{axis,area.y+area.height},1.0f,Color{98,157,197,180});
     EndScissorMode();
 }
-void Renderer::part(const PartDef& d,double x,double y,int rotation,const Viewport& v,Color tint,bool selected,bool flipped,bool deployed) {
+void Renderer::part(const PartDef& d,double x,double y,int rotation,const Viewport& v,Color tint,bool selected,bool flipped,double progress) {
     Vector2 screen=toScreen(x,y,v); float w=d.width*20*v.zoom,h=d.height*20*v.zoom;
     int r=normalizedRotation(rotation);
     Vector2 offset=screen;
@@ -760,7 +741,7 @@ void Renderer::part(const PartDef& d,double x,double y,int rotation,const Viewpo
         rlDrawRenderBatchActive(); rlDisableBackfaceCulling();
         rlPushMatrix(); rlTranslatef(w,0,0); rlScalef(-1,1,1);
     }
-    shape(d,0,0,w,h,tint,selected,deployed);
+    shape(d,0,0,w,h,tint,selected,progress);
     if(flipped) { rlDrawRenderBatchActive(); rlPopMatrix(); rlEnableBackfaceCulling(); }
     EndMode2D();
 }

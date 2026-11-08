@@ -6,6 +6,7 @@
 #include <utility>
 void check(bool condition, const char* message) { if (!condition) { std::cerr << "FAIL: " << message << '\n'; std::exit(1); } }
 void interactionTests();
+void deploymentTests();
 int main() {
     VABSystem v;
     check(!v.preview(1,0,-4.6,false).snapped,"snap radius uses continuous cursor position");
@@ -119,7 +120,8 @@ int main() {
     check(leftNode.offset.x+rightNode.offset.x==partWidth(partById(14),1) && leftNode.offset.y==rightNode.offset.y,"mirrored rotated radial nodes reflect correctly");
     VABInteraction radialInput(radialPair);
     auto mirroredLeg=radialPair.parts()[1];
-    radialInput.beginMove(mirroredLeg.position.x+1,mirroredLeg.position.y+1);
+    auto legPoly=partGeometry(partById(mirroredLeg.defId),mirroredLeg.position,mirroredLeg.rotation,mirroredLeg.flipped,mirroredLeg.deployProgress)[0];
+    radialInput.beginMove((legPoly[0].x+legPoly[2].x)/2,(legPoly[0].y+legPoly[2].y)/2);
     check(radialInput.moving() && radialInput.flipped(),"moving a mirrored part preserves its reflection");
     radialInput.cancel();
     check(radialPair.parts().back().flipped,"cancel restores mirrored part");
@@ -276,5 +278,6 @@ int main() {
         check(p.valid && distant.place(1,p,false),"canvas remains buildable far from the reference axes");
     }
     interactionTests();
+    deploymentTests();
     std::cout << "All construction and interaction tests passed.\n";
 }
