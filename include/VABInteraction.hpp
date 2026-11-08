@@ -1,27 +1,30 @@
 #pragma once
 #include "VABSystem.hpp"
 #include <optional>
-
-// Input-independent interaction state: the window layer supplies grid coordinates
-// and click/drag events. A palette click arms a ghost; only a later workspace click commits it.
+// Input-independent drag state. Palette pickup and placed-part pickup both end on release.
 class AEGIS_API VABInteraction {
 public:
     explicit VABInteraction(VABSystem& system) : system_(system) {}
     void choosePart(int id);
     bool active() const { return dragId_ >= 0; }
     int partId() const { return dragId_; }
+    int rotation() const { return rotation_; }
     bool moving() const { return moved_.has_value(); }
     unsigned long long selected() const { return selected_; }
     Placement preview(double x, double y, bool symmetry) const;
+    double ghostX(double x) const;
+    double ghostY(double y) const;
     Telemetry telemetry() const;
-    bool placeClick(double x, double y, bool symmetry);
+    CenterOfMass centerOfMass() const;
+    bool finishDrag(double x, double y, bool inWorkspace, bool symmetry, bool dragged);
     void beginMove(double x, double y);
-    void endMove(double x, double y, bool dragged);
+    bool rotate(int direction);
     void cancel();
+    void clear();
     void eraseSelectedOrAt(double x, double y);
 private:
     VABSystem& system_;
-    int dragId_ = -1;
+    int dragId_ = -1, rotation_ = 0;
     std::optional<PartInstance> moved_;
     unsigned long long selected_ = 0;
     double offsetX_ = 0, offsetY_ = 0;
