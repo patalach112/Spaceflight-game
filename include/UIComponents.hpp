@@ -2,9 +2,9 @@
 #include <raylib.h>
 #include <string>
 namespace ui {
-inline constexpr Color background{34,56,82,255}, panel{22,36,54,230}, panelLight{48,72,99,245};
-inline constexpr Color line{50,80,115,255}, grid{41,67,97,255}, text{255,255,255,255}, muted{229,241,250,255};
-inline constexpr Color cyan{117,207,255,255}, orange{255,184,91,255}, red{255,128,125,255};
+inline constexpr Color background{25,38,52,255}, panel{19,29,41,255}, panelLight{40,55,70,255};
+inline constexpr Color line{61,81,100,255}, grid{33,48,64,255}, text{255,255,255,255}, muted{195,209,221,255};
+inline constexpr Color cyan{138,198,222,255}, orange{232,180,111,255}, red{255,128,125,255};
 void init();
 void shutdown();
 // Physical-pixel size used for both layout and glyph rasterization.

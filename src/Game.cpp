@@ -31,11 +31,11 @@ void Game::menu() {
     float w=static_cast<float>(GetScreenWidth()),h=static_cast<float>(GetScreenHeight()),s=std::min(settings_.uiScale,std::min(w/900.0f,h/660.0f));
     for (float x=0;x<w;x+=80) DrawLineV({x,0},{x,h},ui::grid);
     for (float y=0;y<h;y+=80) DrawLineV({0,y},{w,y},ui::grid);
-    DrawRectangle(static_cast<int>(w*.62f),0,static_cast<int>(w*.38f),static_cast<int>(h),Color{19,30,48,255});
+    DrawRectangle(static_cast<int>(w*.62f),0,static_cast<int>(w*.38f),static_cast<int>(h),Color{16,25,36,255});
     float cx=w*.76f, cy=h*.50f;
     DrawCircleLines(static_cast<int>(cx),static_cast<int>(cy),130*s,ui::line);
     DrawCircleLines(static_cast<int>(cx),static_cast<int>(cy),190*s,ui::line);
-    DrawLineEx({cx,cy-230*s},{cx,cy+230*s},1,Color{75,118,159,255});
+    DrawLineEx({cx,cy-230*s},{cx,cy+230*s},1,Color{75,99,119,255});
     DrawLineEx({cx-230*s,cy},{cx+230*s,cy},1,ui::line);
     // Use one grid scale for the entire decorative stack; fitting each part
     // into a different tile would change their relative widths and leave gaps.
@@ -148,7 +148,7 @@ void Game::workshop() {
     if(ui::button(rect(bx+236*s,by,96*s,bh),"MASS",s,showCenter_)) showCenter_=!showCenter_;
 
     ui::box(rect(0,0,side,h),ui::panel,ui::line);
-    DrawRectangleRec(rect(0,0,rail,h),Color{19,32,49,235});
+    DrawRectangleRec(rect(0,0,rail,h),Color{16,25,36,255});
     ui::label("AEGIS",14*s,16*s,18*s,ui::text);
     ui::label("PARTS",rail+14*s,17*s,17*s,ui::text);
     ui::label("DRAG TO BUILD",rail+14*s,43*s,12*s,ui::muted);
@@ -158,12 +158,18 @@ void Game::workshop() {
     Category cats[]={Category::Pods,Category::FuelTanks,Category::Engines,Category::Structural};
     for(int i=0;i<4;++i) {
         Rectangle tab=rect(0,76*s+i*70*s,rail,68*s); bool active=category_==cats[i],hover=ui::hit(tab);
-        if(active || hover) DrawRectangleRec(tab,active?Color{50,91,125,245}:Color{51,76,98,210});
+        if(active || hover) DrawRectangleRec(tab,active?Color{43,69,87,255}:Color{38,55,70,255});
         if(active) DrawRectangle(0,static_cast<int>(tab.y),3,static_cast<int>(tab.height),ui::cyan);
         Vector2 center{rail*.5f,tab.y+22*s}; Color icon=active?ui::cyan:ui::muted;
         if(i==0) { DrawTriangle({center.x,center.y-10*s},{center.x-9*s,center.y+8*s},{center.x+9*s,center.y+8*s},icon); }
         else if(i==1) { DrawRectangleLinesEx(rect(center.x-8*s,center.y-10*s,16*s,20*s),1.5f,icon); DrawLineEx({center.x-8*s,center.y-5*s},{center.x+8*s,center.y-5*s},1,icon); }
-        else if(i==2) { DrawLineEx({center.x-6*s,center.y-8*s},{center.x-10*s,center.y+9*s},2,icon); DrawLineEx({center.x+6*s,center.y-8*s},{center.x+10*s,center.y+9*s},2,icon); DrawLineEx({center.x-10*s,center.y+9*s},{center.x+10*s,center.y+9*s},2,icon); }
+        else if(i==2) {
+            DrawLineEx({center.x-10*s,center.y-9*s},{center.x+10*s,center.y-9*s},1,icon);
+            DrawLineEx({center.x-4*s,center.y-6*s},{center.x+4*s,center.y-6*s},1,icon);
+            DrawLineEx({center.x-3*s,center.y-6*s},{center.x-7*s,center.y+8*s},1,icon);
+            DrawLineEx({center.x+3*s,center.y-6*s},{center.x+7*s,center.y+8*s},1,icon);
+            DrawLineEx({center.x-7*s,center.y+8*s},{center.x+7*s,center.y+8*s},1,icon);
+        }
         else { DrawRectangleLinesEx(rect(center.x-10*s,center.y-5*s,20*s,10*s),1.5f,icon); }
         ui::label(names[i],8*s,tab.y+45*s,12*s,active?ui::text:ui::muted);
         if(hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { category_=cats[i]; catalogScroll_=0; }
@@ -185,8 +191,8 @@ void Game::workshop() {
     for(const auto& d:partCatalog()) if(d.category==category_) {
         Rectangle tile=rect(rail+4*s,tileY,side-rail-12*s,tileHeight);
         bool hover=CheckCollisionPointRec(mouse,list) && CheckCollisionPointRec(mouse,tile);
-        if(hover) DrawRectangleRec(tile,Color{57,87,113,200});
-        DrawLineEx({tile.x,tile.y+tile.height-1},{tile.x+tile.width,tile.y+tile.height-1},1,Color{59,82,103,150});
+        if(hover) DrawRectangleRec(tile,Color{45,64,81,255});
+        DrawLineEx({tile.x,tile.y+tile.height-1},{tile.x+tile.width,tile.y+tile.height-1},1,Color{56,73,89,255});
         Renderer::tilePart(d,rect(tile.x+4*s,tile.y+7*s,53*s,58*s));
         // Labels are clamped to at least 12 physical pixels by ui::label.
         // Keep their baselines separated even at the smallest UI scale.
@@ -214,7 +220,11 @@ void Game::workshop() {
     Telemetry t=interaction_.telemetry(); float left=side+20*s,gap=(w-side-40*s)/4;
     const std::string labels[]={"TOTAL MASS","THRUST","TWR / 1 G","PARTS"};
     const std::string vals[]={number(t.mass)+" t",number(t.thrust,0)+" kN",number(t.twr),std::to_string(t.count)};
-    for(int i=0;i<4;++i) { ui::label(labels[i],left+i*gap,h-bottom+13*s,12*s,ui::muted); ui::label(vals[i],left+i*gap,h-bottom+39*s,20*s,ui::text); }
+    for(int i=0;i<4;++i) {
+        if(i>0) DrawLineEx({left+i*gap-12*s,h-bottom+16*s},{left+i*gap-12*s,h-16*s},1,ui::line);
+        ui::label(labels[i],left+i*gap,h-bottom+13*s,12*s,ui::muted);
+        ui::label(vals[i],left+i*gap,h-bottom+39*s,20*s,ui::text);
+    }
 
     // Draw a continuous ghost above the interface so it appears immediately on pickup.
     if(interaction_.active()) {

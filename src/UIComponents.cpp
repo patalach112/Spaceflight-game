@@ -59,8 +59,13 @@ void box(Rectangle r, Color fill, Color border) { DrawRectangleRec(r, fill); Dra
 bool hit(Rectangle r) { return CheckCollisionPointRec(GetMousePosition(), r); }
 bool button(Rectangle r, const std::string& title, float scale, bool active) {
     bool hover = hit(r);
-    box(r, active ? Color{49,101,145,250} : hover ? Color{70,101,131,245} : panelLight, active ? cyan : line);
-    if (active) DrawRectangle(static_cast<int>(r.x), static_cast<int>(r.y), 3, static_cast<int>(r.height), orange);
+    box(r, active ? Color{49,78,96,255} : hover ? Color{57,76,94,255} : panelLight, active ? cyan : line);
+    // A fine top edge and a restrained state marker keep controls legible
+    // without adding another inset card around each label.
+    DrawRectangle(static_cast<int>(r.x+1), static_cast<int>(r.y+1),
+                  std::max(0,static_cast<int>(r.width)-2), 1,
+                  active ? Color{91,132,153,255} : Color{68,87,105,255});
+    if (active) DrawRectangle(static_cast<int>(r.x), static_cast<int>(r.y), 2, static_cast<int>(r.height), cyan);
     label(title, r.x + 10*scale, r.y + (r.height - std::max(12.0f, 14*scale))/2, 14*scale, text);
     return hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 }
