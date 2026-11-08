@@ -1,4 +1,5 @@
 #pragma once
+#include "Export.hpp"
 #include <string_view>
 #include <vector>
 
@@ -15,5 +16,5 @@ struct PartDef {
     std::vector<AttachNode> nodes;
 };
 struct PartInstance { int defId; GridPoint position; unsigned long long uid; };
-const std::vector<PartDef>& partCatalog();
-const PartDef& partById(int id);
+AEGIS_API const std::vector<PartDef>& partCatalog();
+AEGIS_API const PartDef& partById(int id);

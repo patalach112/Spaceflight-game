@@ -1,2 +1,2 @@
-#include "Game.hpp"
-int main() { Game game; game.run(); }
+#include "EngineEntry.hpp"
+int main() { return aegisRun(); }
