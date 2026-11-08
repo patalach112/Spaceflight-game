@@ -29,14 +29,31 @@ function(aegis_warnings target)
 endfunction()
 aegis_warnings(aegis_engine)
 
-# Copy the engine, plus any other known DLL dependencies, beside each executable.
-function(aegis_copy_runtime target)
+# On a Windows host, use a native executable path so cmd.exe does not parse
+# the slash after a drive letter as an option. VERBATIM quotes paths with spaces.
+if(CMAKE_HOST_WIN32)
+  file(TO_NATIVE_PATH "${CMAKE_COMMAND}" AEGIS_CMAKE_EXECUTABLE)
+else()
+  set(AEGIS_CMAKE_EXECUTABLE "${CMAKE_COMMAND}")
+endif()
+
+# Generate a per-configuration manifest so DLL lists and paths are read by CMake,
+# never interpreted as command text (notably by cmd.exe's pipe operator).
+function(aegis_deploy target copy_font)
+  set(manifest "${CMAKE_CURRENT_BINARY_DIR}/runtime/${target}-$<CONFIG>.cmake")
+  set(contents "set(AEGIS_ENGINE [==[$<TARGET_FILE:aegis_engine>]==])\n")
+  string(APPEND contents "set(AEGIS_DLLS [==[$<TARGET_RUNTIME_DLLS:${target}>]==])\n")
+  set(destinations "")
+  foreach(destination IN LISTS ARGN)
+    list(APPEND destinations "${destination}")
+  endforeach()
+  string(APPEND contents "set(AEGIS_DESTINATIONS [==[${destinations}]==])\n")
+  if(copy_font)
+    string(APPEND contents "set(AEGIS_FONT [==[${CMAKE_CURRENT_SOURCE_DIR}/assets/DejaVuSans.ttf]==])\n")
+  endif()
+  file(GENERATE OUTPUT "${manifest}" CONTENT "${contents}" TARGET ${target})
   add_custom_command(TARGET ${target} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "$<TARGET_FILE:aegis_engine>" "$<TARGET_FILE_DIR:${target}>"
-    COMMAND ${CMAKE_COMMAND}
-      "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:${target}>,|>"
-      "-DDESTINATION=$<TARGET_FILE_DIR:${target}>"
+    COMMAND "${AEGIS_CMAKE_EXECUTABLE}" "-DMANIFEST=${manifest}"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CopyRuntime.cmake"
     VERBATIM)
 endfunction()
@@ -56,23 +73,9 @@ if(AEGIS_BUILD_GAME)
   target_link_libraries(aegis_engine PRIVATE raylib)
   add_executable(aegis_game src/main.cpp)
   set_target_properties(aegis_game PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
-  # A changed DLL may not relink the executable when the import library is unchanged.
-  # Copy from the engine's own post-build step too, so incremental builds never run a stale DLL.
-  add_custom_command(TARGET aegis_engine POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/$<CONFIG>"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:aegis_engine>" "${CMAKE_BINARY_DIR}/bin/$<CONFIG>"
-    COMMAND ${CMAKE_COMMAND} "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:aegis_engine>,|>"
-      "-DDESTINATION=${CMAKE_BINARY_DIR}/bin/$<CONFIG>" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CopyRuntime.cmake"
-    VERBATIM)
   target_link_libraries(aegis_game PRIVATE aegis_engine)
   aegis_warnings(aegis_game)
-  aegis_copy_runtime(aegis_game)
-  add_custom_command(TARGET aegis_game POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aegis_game>/assets"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/assets/DejaVuSans.ttf"
-      "$<TARGET_FILE_DIR:aegis_game>/assets/DejaVuSans.ttf"
-    VERBATIM)
+  aegis_deploy(aegis_game TRUE "$<TARGET_FILE_DIR:aegis_game>")
 endif()
 
 if(AEGIS_BUILD_TESTS)
@@ -80,14 +83,25 @@ if(AEGIS_BUILD_TESTS)
   add_executable(aegis_tests tests/VABSystemTests.cpp tests/VABInteractionTests.cpp)
   # Keep parallel game/test post-build copies from writing the same DLL simultaneously.
   set_target_properties(aegis_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/$<CONFIG>")
-  add_custom_command(TARGET aegis_engine POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/tests/$<CONFIG>"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:aegis_engine>" "${CMAKE_BINARY_DIR}/tests/$<CONFIG>"
-    COMMAND ${CMAKE_COMMAND} "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:aegis_engine>,|>"
-      "-DDESTINATION=${CMAKE_BINARY_DIR}/tests/$<CONFIG>" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CopyRuntime.cmake"
-    VERBATIM)
   target_link_libraries(aegis_tests PRIVATE aegis_engine)
   aegis_warnings(aegis_tests)
-  aegis_copy_runtime(aegis_tests)
+  aegis_deploy(aegis_tests FALSE "$<TARGET_FILE_DIR:aegis_tests>")
   add_test(NAME construction COMMAND aegis_tests)
+  add_test(NAME runtime_copy COMMAND "${CMAKE_COMMAND}"
+    "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/runtime-copy-test"
+    "-DCOPY_SCRIPT=${CMAKE_CURRENT_SOURCE_DIR}/cmake/CopyRuntime.cmake"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/CopyRuntimeTests.cmake")
+endif()
+
+# An engine rebuild need not relink the executables. Refresh their runtime copies
+# directly from the engine's post-build step as well as from each executable.
+set(engine_destinations "")
+if(AEGIS_BUILD_GAME)
+  list(APPEND engine_destinations "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
+endif()
+if(AEGIS_BUILD_TESTS)
+  list(APPEND engine_destinations "${CMAKE_BINARY_DIR}/tests/$<CONFIG>")
+endif()
+if(engine_destinations)
+  aegis_deploy(aegis_engine FALSE ${engine_destinations})
 endif()

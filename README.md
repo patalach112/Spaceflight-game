@@ -37,6 +37,17 @@ ctest --test-dir build-mingw --output-on-failure
 .\build-mingw\bin\Release\aegis_game.exe
 ```
 
+### MSYS2 UCRT64 / MinGW-w64 / Ninja
+
+In an MSYS2 UCRT64 shell with the UCRT64 GCC, CMake and Ninja packages installed:
+
+```bash
+cmake -S . -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-ninja --parallel
+ctest --test-dir build-ninja --output-on-failure
+./build-ninja/bin/Release/aegis_game.exe
+```
+
 Use a fresh directory when changing generators or compilers. Subsequent builds reuse Raylib and unchanged object files; actual incremental build time depends on the toolchain and which files changed, so sub-second builds are not guaranteed. For headless tests without downloading Raylib, configure with `-DAEGIS_BUILD_GAME=OFF`.
 
 ## Controls
