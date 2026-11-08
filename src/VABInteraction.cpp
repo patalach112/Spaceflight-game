@@ -1,16 +1,16 @@
 #include "VABInteraction.hpp"
 void VABInteraction::choosePart(int id) {
-    partById(id); cancel(); selected_=0; dragId_=id; rotation_=0;
+    partById(id); cancel(); selected_=0; dragId_=id; rotation_=0; flipped_=false;
 }
 Placement VABInteraction::preview(double x,double y,bool symmetry) const {
     if(!active()) return {};
-    return system_.preview(dragId_,x-offsetX_,y-offsetY_,symmetry && !moving(),rotation_);
+    return system_.preview(dragId_,x-offsetX_,y-offsetY_,symmetry && !moving(),rotation_,flipped_);
 }
 double VABInteraction::ghostX(double x) const { return active()?x-offsetX_-partWidth(partById(dragId_),rotation_)/2.0:x; }
 double VABInteraction::ghostY(double y) const { return active()?y-offsetY_-partHeight(partById(dragId_),rotation_)/2.0:y; }
 Telemetry VABInteraction::telemetry() const {
     Telemetry t=system_.telemetry();
-    if(moved_) { const auto& d=partById(moved_->defId); t.mass+=d.dryMass+d.fuelCapacity; t.thrust+=d.thrust; ++t.count; t.twr=t.mass>0?t.thrust/(t.mass*9.80665):0; }
+    if(moved_) { const auto& d=partById(moved_->defId); t.mass+=d.dryMass+d.fuelCapacity; if(d.category==Category::Engines) t.thrust+=d.thrust; ++t.count; t.twr=t.mass>0?t.thrust/(t.mass*9.80665):0; }
     return t;
 }
 CenterOfMass VABInteraction::centerOfMass() const {
@@ -38,7 +38,7 @@ void VABInteraction::beginMove(double x,double y) {
     if(active()) return;
     moved_=system_.removeAt(x,y);
     if(!moved_) { selected_=0; return; }
-    dragId_=moved_->defId; rotation_=moved_->rotation; selected_=moved_->uid;
+    dragId_=moved_->defId; rotation_=moved_->rotation; flipped_=moved_->flipped; selected_=moved_->uid;
     const auto& d=partById(dragId_);
     offsetX_=x-(moved_->position.x+partWidth(d,rotation_)/2.0);
     offsetY_=y-(moved_->position.y+partHeight(d,rotation_)/2.0);
@@ -53,7 +53,7 @@ bool VABInteraction::rotate(int direction) {
 }
 void VABInteraction::cancel() {
     if(moved_) { system_.restore(*moved_); moved_.reset(); }
-    dragId_=-1; rotation_=0; offsetX_=offsetY_=0;
+    dragId_=-1; rotation_=0; flipped_=false; offsetX_=offsetY_=0;
 }
 void VABInteraction::clear() { cancel(); system_.clear(); selected_=0; }
 void VABInteraction::eraseSelectedOrAt(double x,double y) {

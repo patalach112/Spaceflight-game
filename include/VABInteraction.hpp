@@ -9,6 +9,7 @@ public:
     bool active() const { return dragId_ >= 0; }
     int partId() const { return dragId_; }
     int rotation() const { return rotation_; }
+    bool flipped() const { return flipped_; }
     bool moving() const { return moved_.has_value(); }
     unsigned long long selected() const { return selected_; }
     Placement preview(double x, double y, bool symmetry) const;
@@ -25,6 +26,7 @@ public:
 private:
     VABSystem& system_;
     int dragId_ = -1, rotation_ = 0;
+    bool flipped_ = false;
     std::optional<PartInstance> moved_;
     unsigned long long selected_ = 0;
     double offsetX_ = 0, offsetY_ = 0;

@@ -13,11 +13,10 @@ bool overlap(GridPoint a, int aw, int ah, GridPoint b, int bw, int bh) {
 GridPoint mirror(GridPoint p, int width) { return {-p.x-width,p.y}; }
 }
 bool VABSystem::nodeOccupied(GridPoint point, Direction direction) const {
-    if (point.y == 0 && direction == Direction::Down) return true;
     for (const auto& part : parts_) {
         const auto& d=partById(part.defId);
         for (auto node : d.nodes) {
-            node=rotatedNode(d,node,part.rotation);
+            node=rotatedNode(d,node,part.rotation,part.flipped);
             GridPoint p{part.position.x+node.offset.x,part.position.y+node.offset.y};
             if (same(p,point) && opposite(direction,node.direction)) return true;
         }
@@ -27,14 +26,13 @@ bool VABSystem::nodeOccupied(GridPoint point, Direction direction) const {
 bool VABSystem::canPlace(int defId, GridPoint pos, int rotation) const {
     const auto& d=partById(defId);
     int w=partWidth(d,rotation), h=partHeight(d,rotation);
-    if (pos.y+h>0) return false;
     for (const auto& part : parts_) {
         const auto& other=partById(part.defId);
         if (overlap(pos,w,h,part.position,partWidth(other,part.rotation),partHeight(other,part.rotation))) return false;
     }
     return true;
 }
-Placement VABSystem::preview(int defId, double x, double y, bool symmetry, int rotation) const {
+Placement VABSystem::preview(int defId, double x, double y, bool symmetry, int rotation, bool flipped) const {
     const auto& d=partById(defId); rotation=normalizedRotation(rotation);
     int w=partWidth(d,rotation),h=partHeight(d,rotation);
     GridPoint desired{static_cast<int>(std::round(x-w/2.0)),static_cast<int>(std::round(y-h/2.0))};
@@ -44,7 +42,7 @@ Placement VABSystem::preview(int defId, double x, double y, bool symmetry, int r
             (canPlace(defId,mirrored,-rotation) && !overlap(pos,w,h,mirrored,w,h)));
     };
     bool gridValid=validAt(desired);
-    Placement result{desired,{},false,gridValid,rotation};
+    Placement result{desired,{},false,gridValid,rotation,flipped};
     bool foundSnap=false; double best=2.25,bestInvalid=best;
     auto consider=[&](GridPoint target, AttachNode own, Direction other) {
         if (!opposite(own.direction,other)) return;
@@ -52,19 +50,17 @@ Placement VABSystem::preview(int defId, double x, double y, bool symmetry, int r
         double dx=pos.x-(x-w/2.0),dy=pos.y-(y-h/2.0),dist=dx*dx+dy*dy;
         if(dist>2.25) return;
         if(!validAt(pos)) {
-            if(!foundSnap && !gridValid && dist<=bestInvalid) { bestInvalid=dist; result={pos,target,true,false,rotation}; }
+            if(!foundSnap && !gridValid && dist<=bestInvalid) { bestInvalid=dist; result={pos,target,true,false,rotation,flipped}; }
             return;
         }
-        if(dist<=best) { best=dist; foundSnap=true; result={pos,target,true,true,rotation}; }
+        if(dist<=best) { best=dist; foundSnap=true; result={pos,target,true,true,rotation,flipped}; }
     };
-    AttachNode base{{w/2,h},Direction::Down};
-    consider({desired.x+base.offset.x,0},base,Direction::Up);
     for(auto own:d.nodes) {
-        own=rotatedNode(d,own,rotation);
+        own=rotatedNode(d,own,rotation,flipped);
         for(const auto& part:parts_) {
             const auto& other=partById(part.defId);
             for(auto node:other.nodes) {
-                node=rotatedNode(other,node,part.rotation);
+                node=rotatedNode(other,node,part.rotation,part.flipped);
                 GridPoint point{part.position.x+node.offset.x,part.position.y+node.offset.y};
                 if(!nodeOccupied(point,node.direction)) consider(point,own,node.direction);
             }
@@ -78,8 +74,8 @@ bool VABSystem::place(int id,const Placement& p,bool symmetry) {
     const auto& d=partById(id); int w=partWidth(d,rotation),h=partHeight(d,rotation);
     GridPoint mirrored=mirror(p.position,w);
     if(symmetry && !same(p.position,mirrored) && (!canPlace(id,mirrored,-rotation) || overlap(p.position,w,h,mirrored,w,h))) return false;
-    parts_.push_back({id,p.position,nextUid_++,rotation});
-    if(symmetry && !same(p.position,mirrored)) parts_.push_back({id,mirrored,nextUid_++,normalizedRotation(-rotation)});
+    parts_.push_back({id,p.position,nextUid_++,rotation,p.flipped});
+    if(symmetry && !same(p.position,mirrored)) parts_.push_back({id,mirrored,nextUid_++,normalizedRotation(-rotation),!p.flipped});
     return true;
 }
 std::optional<PartInstance> VABSystem::removeAt(double x,double y) {
@@ -110,7 +106,6 @@ bool VABSystem::rotateById(unsigned long long uid,int direction) {
         GridPoint pos{p.position.x-offsetX(p.rotation)+offsetX(rotation),p.position.y-offsetY(p.rotation)+offsetY(rotation)};
         // Temporarily remove this part from collision checks, preserving its identity and order.
         p.position=pos; p.rotation=rotation;
-        if(pos.y+partHeight(d,rotation)>0) { p=old; return false; }
         for(const auto& other:parts_) if(other.uid!=uid) {
             const auto& od=partById(other.defId);
             if(overlap(pos,partWidth(d,rotation),partHeight(d,rotation),other.position,partWidth(od,other.rotation),partHeight(od,other.rotation))) { p=old; return false; }
@@ -120,7 +115,7 @@ bool VABSystem::rotateById(unsigned long long uid,int direction) {
     return false;
 }
 Telemetry VABSystem::telemetry() const {
-    Telemetry t; for(const auto& p:parts_) { const auto& d=partById(p.defId); t.mass+=d.dryMass+d.fuelCapacity; t.thrust+=d.thrust; ++t.count; }
+    Telemetry t; for(const auto& p:parts_) { const auto& d=partById(p.defId); t.mass+=d.dryMass+d.fuelCapacity; if(d.category==Category::Engines) t.thrust+=d.thrust; ++t.count; }
     if(t.mass>0) t.twr=t.thrust/(t.mass*9.80665);
     return t;
 }

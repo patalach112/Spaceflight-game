@@ -14,6 +14,8 @@ std::vector<Vertex> vertices;
 std::vector<Line> lines;
 std::vector<Rectangle> gradientBands;
 Color currentColor{};
+int pushes=0, pops=0, scissors=0, cullOff=0, cullOn=0, flushes=0;
+std::vector<Color> bandColors;
 Vector2 translation{};
 bool near(float a, float b) { return std::abs(a-b)<0.001f; }
 bool equal(Vector2 a, Vector2 b) { return near(a.x,b.x) && near(a.y,b.y); }
@@ -27,6 +29,13 @@ extern "C" {
 Texture2D GetShapesTexture(void) { return {1,256,256,1,7}; }
 Rectangle GetShapesTextureRectangle(void) { return {0,0,1,1}; }
 void rlSetTexture(unsigned int) {}
+void rlDrawRenderBatchActive(void) { ++flushes; }
+void rlDisableBackfaceCulling(void) { ++cullOff; }
+void rlEnableBackfaceCulling(void) { ++cullOn; }
+void rlPushMatrix(void) { ++pushes; }
+void rlPopMatrix(void) { ++pops; }
+void rlTranslatef(float,float,float) {}
+void rlScalef(float,float,float) {}
 void rlBegin(int mode) { assert(mode == RL_TRIANGLES); vertices.clear(); }
 void rlEnd(void) {}
 void rlTexCoord2f(float, float) {}
@@ -36,14 +45,15 @@ void DrawLineEx(Vector2 a,Vector2 b,float width,Color) {
     lines.push_back({{a.x+translation.x,a.y+translation.y},{b.x+translation.x,b.y+translation.y},width});
 }
 void DrawLineV(Vector2,Vector2,Color) {}
+void DrawTriangle(Vector2,Vector2,Vector2,Color) {}
 void DrawRectangleRec(Rectangle,Color) {}
-void DrawRectangleGradientEx(Rectangle rect,Color,Color,Color,Color) { gradientBands.push_back(rect); }
+void DrawRectangleGradientEx(Rectangle rect,Color a,Color,Color,Color d) { gradientBands.push_back(rect); bandColors.push_back(a); bandColors.push_back(d); }
 void DrawCircleV(Vector2,float,Color) {}
 void DrawCircleLinesV(Vector2,float,Color) {}
 void DrawRectangleLinesEx(Rectangle,float,Color) {}
-void BeginScissorMode(int,int,int,int) {}
+void BeginScissorMode(int,int,int,int) { ++scissors; }
 void EndScissorMode(void) {}
-void BeginMode2D(Camera2D camera) { assert(camera.rotation == 0); translation=camera.offset; }
+void BeginMode2D(Camera2D camera) { assert(std::fmod(camera.rotation,90.0f) == 0); translation=camera.offset; }
 void EndMode2D(void) { translation={}; }
 }
 int main() {
@@ -78,5 +88,20 @@ int main() {
         assert(vertex.position.x>=0 && vertex.position.x<=80);
         assert(vertex.position.y>=0 && vertex.position.y<=60);
     }
-    std::cout << "Shared gradient vertices and flush attachment faces passed\n";
+    bool steelEdge=false, steelBody=false;
+    for(auto c:bandColors) { steelEdge|=c.r==96 && c.g==115 && c.b==138; steelBody|=c.r==138 && c.g==155 && c.b==176; }
+    assert(steelEdge && steelBody);
+    bandColors.clear();
+    Renderer::part(partById(1),0,0,0,view,Color{255,128,125,180});
+    assert(!bandColors.empty() && bandColors.front().r==96 && bandColors.front().g==57 && bandColors.front().a==180);
+    for(const auto& d:partCatalog()) {
+        Renderer::tilePart(d,{0,0,53,58});
+        for(int rotation=0; rotation<4; ++rotation) Renderer::part(d,4,3,rotation,view,white,false,true);
+    }
+    assert(scissors==0); // tile rendering must preserve its caller's list scissor
+    assert(pushes==pops && pushes==static_cast<int>(partCatalog().size())*4);
+    assert(cullOff==pushes && cullOn==pushes && flushes==2*pushes);
+    lines.clear(); Renderer::workspace(view,{-100,-100,200,200});
+    for(const auto& line:lines) assert(!(near(line.a.y,line.b.y) && line.width>1)); // no ground barrier
+    std::cout << "Shared gradients, flat clipped tiles and reflected part rendering passed\n";
 }

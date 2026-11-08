@@ -11,12 +11,13 @@ struct Placement {
     bool snapped = false;
     bool valid = false;
     int rotation = 0;
+    bool flipped = false;
 };
 class AEGIS_API VABSystem {
 public:
     const std::vector<PartInstance>& parts() const { return parts_; }
-    // Cursor is in continuous grid coordinates, relative to the floor/axis origin.
-    Placement preview(int defId, double cursorX, double cursorY, bool symmetry, int rotation = 0) const;
+    // Cursor is in continuous grid coordinates, relative to the reference-axis origin.
+    Placement preview(int defId, double cursorX, double cursorY, bool symmetry, int rotation = 0, bool flipped = false) const;
     bool place(int defId, const Placement& placement, bool symmetry);
     std::optional<PartInstance> removeAt(double x, double y);
     bool restore(const PartInstance& part);
