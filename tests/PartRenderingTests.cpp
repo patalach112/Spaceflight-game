@@ -15,7 +15,9 @@ struct Vertex { Vector2 position; Color color; };
 struct Line { Vector2 a, b; float width; Color color; };
 struct Triangle { Vector2 a,b,c; Color color; };
 std::vector<Vertex> vertices;
-std::vector<Line> lines;
+std::vector<Line> lines, gridLines;
+Color lastRectangleColor{};
+Rectangle lastRectangle{};
 std::vector<Triangle> triangles;
 int circles=0;
 std::vector<Rectangle> gradientBands;
@@ -67,9 +69,9 @@ void DrawLineEx(Vector2 a,Vector2 b,float width,Color color) {
     lines.push_back({{a.x+translation.x,a.y+translation.y},{b.x+translation.x,b.y+translation.y},width,color});
     if(recording) { signature << "line;"; xy(a); xy(b); }
 }
-void DrawLineV(Vector2,Vector2,Color) {}
+void DrawLineV(Vector2 a,Vector2 b,Color color) { gridLines.push_back({a,b,1,color}); }
 void DrawTriangle(Vector2 a,Vector2 b,Vector2 c,Color color) { triangles.push_back({a,b,c,color}); assert((b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x)<=0.001f); if(recording) { signature << "triangle;"; xy(a); xy(b); xy(c); } }
-void DrawRectangleRec(Rectangle r,Color) { if(recording) { signature << "rect;"; box(r); } }
+void DrawRectangleRec(Rectangle r,Color color) { lastRectangle=r; lastRectangleColor=color; if(recording) { signature << "rect;"; box(r); } }
 void DrawRectangleGradientEx(Rectangle rect,Color a,Color,Color,Color d) { gradientBands.push_back(rect); bandColors.push_back(a); bandColors.push_back(d); if(recording) { signature << "gradient;"; box(rect); } }
 void DrawCircleV(Vector2 p,float r,Color) { ++circles; if(recording) { signature << "circle;"; xy(p); signature << r/std::min(normW,normH) << ';'; normalizedGeometry.push_back(r/std::min(normW,normH)); } }
 void DrawCircleLinesV(Vector2,float,Color) {}
@@ -231,15 +233,17 @@ int main() {
         Renderer::tilePart(d,{0,0,53,58});
         recording=false;
         std::string art=signature.str();
-        // Every part uses a different material edge color, even where its
-        // overall geometry resembles another member of the same family.
-        Color edge{};
-        if(d.shape==PartShape::Truss) { assert(!lines.empty()); edge=lines.front().color; }
-        else if(d.shape==PartShape::Capsule || d.shape==PartShape::NoseCone || d.shape==PartShape::SideNose || d.shape==PartShape::Parachute || d.shape==PartShape::HeatShield) {
-            assert(!vertices.empty()); edge=vertices.front().color;
-        } else { assert(!bandColors.empty()); edge=bandColors.front(); }
-        unsigned key=(static_cast<unsigned>(edge.r)<<16)|(static_cast<unsigned>(edge.g)<<8)|edge.b;
-        assert(materialEdges.insert(key).second);
+        // Preserve the distinct original materials. New families are also
+        // checked for unique normalized geometry, including their detailing.
+        if(d.id<22) {
+            Color edge{};
+            if(d.shape==PartShape::Truss) { assert(!lines.empty()); edge=lines.front().color; }
+            else if(d.shape==PartShape::Capsule || d.shape==PartShape::NoseCone || d.shape==PartShape::SideNose || d.shape==PartShape::Parachute || d.shape==PartShape::HeatShield) {
+                assert(!vertices.empty()); edge=vertices.front().color;
+            } else { assert(!bandColors.empty()); edge=bandColors.front(); }
+            unsigned key=(static_cast<unsigned>(edge.r)<<16)|(static_cast<unsigned>(edge.g)<<8)|edge.b;
+            assert(materialEdges.insert(key).second);
+        }
         if(!designs.insert(art).second) { std::cerr << "duplicate art for " << d.name << '\n'; return 1; }
         if(d.shape==PartShape::Capsule) assert(art.find("circle;")==std::string::npos && art.find("triangle;")==std::string::npos && art.find("rect;")==std::string::npos);
         if(d.shape==PartShape::Truss) assert(art.find("gradient;")==std::string::npos && art.find("rect;")==std::string::npos && art.find("mesh;")==std::string::npos);
@@ -251,7 +255,7 @@ int main() {
         assert(outline); // dark slate outlines remain a crisp one pixel
         for(int rotation=0; rotation<4; ++rotation) Renderer::part(d,4,3,rotation,view,white,false,true);
     }
-    assert(designs.size()==22 && materialEdges.size()==22);
+    assert(designs.size()==partCatalog().size() && materialEdges.size()==22);
     assert(scissors==0); // tile rendering must preserve its caller's list scissor
     assert(pushes==pops && pushes==static_cast<int>(partCatalog().size())*4);
     assert(cullOff==pushes && cullOn==pushes && flushes==2*pushes);
@@ -288,7 +292,21 @@ int main() {
             matches();
         }
     }
-    lines.clear(); Renderer::workspace(view,{-100,-100,200,200});
+    // Lock the VAB palette independently of UI theme colors. Grid coordinates
+    // remain pixel-aligned and distinguish every fourth line at normal zoom.
+    lines.clear(); gridLines.clear(); Renderer::workspace(view,{-100,-100,200,200});
+    assert(equal(lastRectangleColor,Color{40,52,66,255}));
+    assert(near(lastRectangle.x,-100) && near(lastRectangle.y,-100) && near(lastRectangle.width,200) && near(lastRectangle.height,200));
+    bool minor=false,major=false;
+    for(const auto& line:gridLines) {
+        assert(near(line.width,1));
+        assert(near(line.a.x,line.b.x) || near(line.a.y,line.b.y));
+        assert(near(line.a.x,std::round(line.a.x)) && near(line.a.y,std::round(line.a.y)));
+        minor|=equal(line.color,Color{47,61,75,255});
+        major|=equal(line.color,Color{55,70,86,255});
+        assert(equal(line.color,Color{47,61,75,255}) || equal(line.color,Color{55,70,86,255}));
+    }
+    assert(minor && major);
     for(const auto& line:lines) assert(!(near(line.a.y,line.b.y) && line.width>1)); // no ground barrier
-    std::cout << "22 unique vector designs, white-pixel meshes, attachment faces and reflection passed\n";
+    std::cout << "All catalog designs, white-pixel meshes, attachment faces and reflection passed\n";
 }

@@ -50,9 +50,15 @@ MaterialProfile materialFor(int id) {
         {{61,70,77,255},{150,158,159,255},{104,116,121,255},.34f,.70f},
         {{80,96,109,255},{182,195,204,255},{132,151,164,255},.20f,.66f}
     };
-    if(id<0 || id>=static_cast<int>(sizeof(profiles)/sizeof(profiles[0])))
-        throw std::logic_error("Part is missing its material profile");
-    return profiles[id];
+    if(id<0 || id>=83) throw std::logic_error("Part is missing its material profile");
+    if(id<static_cast<int>(sizeof(profiles)/sizeof(profiles[0]))) return profiles[id];
+    // Additional size variants retain a related but individually keyed finish.
+    // Their geometry and panel layout are also selected by dimensions below.
+    int variant=id-22;
+    int tone=variant/4;
+    return {{static_cast<unsigned char>(92+tone),static_cast<unsigned char>(105+tone),
+             static_cast<unsigned char>(120+tone+variant%4),255},
+            {211,220,224,255},{166,179,187,255},.25f,.68f};
 }
 // Five independently controlled transitions give metal a soft cylindrical
 // falloff without the hard bands of a two-colour gradient. Adjacent quads
@@ -223,11 +229,24 @@ void tank4x8(const Canvas& c) {
     c.line(.075f,.06f,.075f,.94f,c.seam()); c.line(.16f,.06f,.16f,.94f,c.bright());
     c.line(.84f,.06f,.84f,.94f,c.seam()); c.line(.925f,.06f,.925f,.94f,c.seam());
 }
-void tank(const Canvas& c,int id) {
-    switch(id) {
-        case 5: tank4x2(c); break; case 6: tank4x4(c); break;
-        case 1: tank4x6(c); break; case 7: tank4x8(c); break;
-        default: throw std::logic_error("Tank is missing its vector design");
+void tank(const Canvas& c,const PartDef& d) {
+    switch(d.id) {
+        case 5: tank4x2(c); return; case 6: tank4x4(c); return;
+        case 1: tank4x6(c); return; case 7: tank4x8(c); return;
+        default: break;
+    }
+    tankBody(c);
+    c.line(.015f,.035f,.985f,.035f,c.bright()); c.line(.015f,.965f,.985f,.965f,c.seam());
+    int sections=d.height/2;
+    for(int i=1;i<sections;++i) {
+        float y=static_cast<float>(i)/sections;
+        c.line(.015f,y,.985f,y,c.seam());
+    }
+    // Vertical skin joints are spaced in grid units instead of stretching a
+    // four-wide texture over all of the wider tank sizes.
+    for(int i=2;i<d.width;i+=2) {
+        float x=static_cast<float>(i)/d.width;
+        c.line(x,.06f,x,.94f,tinted({147,162,172,255},c.tint));
     }
 }
 // Cubic radial profiles are authored for each bell. The curve is evaluated in
@@ -510,6 +529,122 @@ void dockingPort(const Canvas& c) {
     c.line(.03f,.65f,.97f,.65f,c.seam()); c.line(.03f,.77f,.97f,.77f,c.bright());
     c.bolt(.13f,.50f); c.bolt(.87f,.50f);
 }
+// Additional shapes use the same grid-local canvas and 1px slate outlines as
+// the original parts. Their nodes and visual mating faces share the same edge.
+void adapter(const Canvas& c,const PartDef& d) {
+    float inset=1.0f/d.width;
+    auto top=[&](float x) { return x<inset ? 1.0f-x/inset : x>1-inset ? (x-(1-inset))/inset : 0.0f; };
+    // Split at both shoulders so the tessellation includes the exact top
+    // corners, even when the width does not divide 32 evenly.
+    auto bottom=[](float){return 1.0f;};
+    c.skin(0,inset,top,bottom);
+    c.skin(inset,1-inset,top,bottom);
+    c.skin(1-inset,1,top,bottom);
+    c.outline({{inset,0},{1-inset,0},{1,1},{0,1}},c.ink());
+    c.line(inset+.02f,.08f,1-inset-.02f,.08f,c.bright());
+    c.line(.04f,.88f,.96f,.88f,c.seam());
+    for(int i=1;i<d.width/2-1;++i) {
+        float x=inset+(1-2*inset)*i/(d.width/2-1);
+        c.line(x,.20f,x,.78f,c.seam());
+    }
+}
+void wheel(const Canvas& c,const PartDef& d) {
+    float anchor=static_cast<float>(d.nodes.front().offset.y)/d.height;
+    c.plate(0,anchor-.13f,.22f,anchor+.13f);
+    c.circle(.52f,.5f,.46f,c.ink());
+    c.circle(.52f,.5f,.43f,tinted({48,60,73,255},c.tint));
+    c.circle(.52f,.5f,.30f,tinted({98,116,132,255},c.tint));
+    c.circle(.52f,.5f,.25f,c.ink());
+    c.circle(.52f,.5f,.21f,tinted({151,166,175,255},c.tint));
+    c.circle(.52f,.5f,.075f,c.ink());
+    int treads=d.width==2?12:16;
+    constexpr float tau=6.28318530718f;
+    for(int i=0;i<treads;++i) {
+        float a=tau*i/treads,cs=std::cos(a),sn=std::sin(a);
+        c.line(.52f+.34f*cs,.5f+.34f*sn,.52f+.42f*cs,.5f+.42f*sn,c.seam());
+    }
+    for(int i=0;i<4;++i) {
+        float a=tau*i/4; c.circle(.52f+.15f*std::cos(a),.5f+.15f*std::sin(a),.022f,c.ink());
+    }
+}
+void heavyLeg(const Canvas& c) {
+    c.plate(0,.23f,.18f,.68f);
+    c.poly({{.12f,.28f},{.25f,.25f},{.72f,.72f},{.61f,.79f}},tinted({119,138,153,255},c.tint));
+    c.outline({{.12f,.28f},{.25f,.25f},{.72f,.72f},{.61f,.79f}},c.ink());
+    c.poly({{.14f,.59f},{.23f,.55f},{.59f,.79f},{.53f,.84f}},c.dark());
+    c.outline({{.14f,.59f},{.23f,.55f},{.59f,.79f},{.53f,.84f}},c.ink());
+    c.line(.18f,.58f,.55f,.81f,c.bright());
+    c.circle(.18f,.32f,.065f,c.ink()); c.circle(.18f,.32f,.032f,c.bright());
+    c.circle(.64f,.75f,.055f,c.ink()); c.circle(.64f,.75f,.025f,c.bright());
+    c.poly({{.52f,.85f},{.83f,.85f},{.98f,.96f},{.42f,.96f}},c.dark());
+    c.outline({{.52f,.85f},{.83f,.85f},{.98f,.96f},{.42f,.96f}},c.ink());
+    c.line(.52f,.87f,.83f,.87f,c.bright());
+}
+void ionEngine(const Canvas& c) {
+    c.plate(0,0,1,.16f); c.plate(.20f,.16f,.80f,.34f);
+    c.poly({{.27f,.34f},{.73f,.34f},{.85f,.86f},{.15f,.86f}},tinted({90,108,125,255},c.tint));
+    c.outline({{.27f,.34f},{.73f,.34f},{.85f,.86f},{.15f,.86f}},c.ink());
+    c.ellipse(.5f,.87f,.35f,.08f,c.ink());
+    c.ellipse(.5f,.865f,.30f,.055f,tinted({105,128,144,255},c.tint));
+    c.ellipse(.5f,.86f,.22f,.035f,c.black());
+    c.line(.25f,.55f,.75f,.55f,c.seam()); c.line(.20f,.73f,.80f,.73f,c.seam());
+    c.line(.30f,.22f,.70f,.22f,c.bright());
+}
+void fairing(const Canvas& c,const PartDef& d) {
+    // Separate shell side with a full-width lower mating face and an open
+    // recessed interior panel; symmetry reflects it for the opposite half.
+    c.poly({{0,0},{.50f,0},{.94f,.12f},{1,.24f},{1,1},{0,1}},tinted({153,170,183,255},c.tint));
+    c.outline({{0,0},{.50f,0},{.94f,.12f},{1,.24f},{1,1},{0,1}},c.ink());
+    c.poly({{.14f,.13f},{.40f,.13f},{.77f,.25f},{.82f,.90f},{.14f,.90f}},tinted({86,104,122,255},c.tint));
+    c.outline({{.14f,.13f},{.40f,.13f},{.77f,.25f},{.82f,.90f},{.14f,.90f}},c.ink());
+    c.line(.06f,.04f,.48f,.04f,c.bright());
+    for(int i=1;i<d.height/4;++i) {
+        float y=.25f+.62f*i/(d.height/4);
+        c.line(.16f,y,.78f,y,c.seam());
+    }
+}
+void engineBase(const Canvas& c,const PartDef& d) {
+    tankBody(c); c.line(.02f,.10f,.98f,.10f,c.bright()); c.line(.02f,.80f,.98f,.80f,c.seam());
+    int fins=d.width==6?2:4;
+    for(int i=0;i<fins;++i) {
+        float x=(i+.5f)/fins, half=.28f/fins;
+        c.poly({{x-half,.78f},{x+half,.78f},{x+half*1.4f,1},{x-half*1.4f,1}},c.dark());
+        c.outline({{x-half,.78f},{x+half,.78f},{x+half*1.4f,1},{x-half*1.4f,1}},c.ink());
+    }
+    for(int i=1;i<d.width/2;++i) c.line(static_cast<float>(i)/(d.width/2),.15f,static_cast<float>(i)/(d.width/2),.72f,c.seam());
+}
+void solarPanel(const Canvas& c,const PartDef& d) {
+    c.plate(0,.42f,.15f,.58f);
+    c.rect(.14f,.03f,.82f,.94f,tinted({38,65,91,255},c.tint));
+    c.frame(.14f,.03f,.96f,.97f,c.ink());
+    c.line(.16f,.05f,.94f,.05f,c.bright());
+    int columns=d.width,rows=d.height;
+    for(int i=1;i<columns;++i) { float x=.14f+.82f*i/columns; c.line(x,.04f,x,.96f,c.seam()); }
+    for(int i=1;i<rows;++i) { float y=.03f+.94f*i/rows; c.line(.15f,y,.95f,y,c.seam()); }
+}
+void fin(const Canvas& c,const PartDef& d) {
+    float tip=d.width==2?.92f:.98f;
+    c.poly({{0,.20f},{.19f,.28f},{tip,.84f},{tip,.96f},{0,.96f}},tinted({139,157,169,255},c.tint));
+    c.outline({{0,.20f},{.19f,.28f},{tip,.84f},{tip,.96f},{0,.96f}},c.ink());
+    c.line(.10f,.36f,.10f,.91f,c.bright()); c.line(.13f,.90f,tip-.04f,.90f,c.seam());
+    if(d.width>2) c.line(.20f,.41f,.74f,.82f,c.seam());
+}
+void hollowShield(const Canvas& c,const PartDef& d) {
+    c.band(0,.22f); c.frame(0,0,1,.22f,c.ink());
+    // Each half is convex; drawing as separate trapezoids leaves the center open.
+    c.poly({{0,.22f},{.12f,.22f},{.20f,.76f},{.10f,1}},c.dark());
+    c.poly({{.88f,.22f},{1,.22f},{.90f,1},{.80f,.76f}},c.dark());
+    c.rect(.10f,.76f,.80f,.24f,c.dark());
+    c.outline({{0,.22f},{.12f,.22f},{.20f,.76f},{.80f,.76f},{.88f,.22f},{1,.22f},{.90f,1},{.10f,1}},c.ink());
+    for(int i=1;i<d.width/2;++i) c.line(static_cast<float>(i)/(d.width/2),.83f,static_cast<float>(i)/(d.width/2),.96f,c.seam());
+}
+void sideChute(const Canvas& c) {
+    c.plate(0,.25f,.30f,.75f);
+    c.poly({{.30f,.18f},{.64f,.18f},{.91f,.34f},{.91f,.66f},{.64f,.82f},{.30f,.82f}},tinted({152,169,181,255},c.tint));
+    c.outline({{.30f,.18f},{.64f,.18f},{.91f,.34f},{.91f,.66f},{.64f,.82f},{.30f,.82f}},c.ink());
+    c.line(.47f,.20f,.47f,.80f,c.seam()); c.line(.65f,.20f,.65f,.80f,c.seam());
+    c.line(.33f,.27f,.84f,.27f,c.bright());
+}
 void shape(const PartDef& d,float x,float y,float w,float h,Color tint,bool selected) {
     Canvas c{x,y,w,h,tint,materialFor(d.id)};
     // Exhaustive dispatch: no structural fallback is allowed to silently
@@ -517,19 +652,44 @@ void shape(const PartDef& d,float x,float y,float w,float h,Color tint,bool sele
     switch(d.shape) {
         case PartShape::Capsule: capsule(c); break;
         case PartShape::Probe: probe(c); break;
-        case PartShape::Tank: tank(c,d.id); break;
+        case PartShape::Tank: tank(c,d); break;
         case PartShape::Engine: engine(c,d.id); break;
-        case PartShape::NoseCone: nose(c); break;
-        case PartShape::Decoupler: decoupler(c); break;
+        case PartShape::NoseCone:
+            nose(c);
+            if(d.id>=22) for(int i=1;i<d.width/2;++i) { float x=static_cast<float>(i)/(d.width/2); c.line(x,.94f,x,.99f,c.seam()); }
+            break;
+        case PartShape::Decoupler:
+            decoupler(c);
+            if(d.id>=22) for(int i=1;i<d.width/2;++i) c.bolt(static_cast<float>(i)/(d.width/2),.75f);
+            break;
         case PartShape::SideSeparator: sideSeparator(c); break;
         case PartShape::LandingLeg: landingLeg(c); break;
         case PartShape::Rcs: rcs(c); break;
         case PartShape::Panel: panel(c); break;
-        case PartShape::Truss: truss(c); break;
+        case PartShape::Truss:
+            truss(c);
+            if(d.id>=22) for(int i=1;i<d.width/4;++i) c.line(static_cast<float>(i)/(d.width/4),.12f,static_cast<float>(i)/(d.width/4),.88f,c.seam());
+            break;
         case PartShape::SideNose: sideNose(c); break;
         case PartShape::Parachute: parachute(c); break;
-        case PartShape::HeatShield: heatShield(c); break;
-        case PartShape::DockingPort: dockingPort(c); break;
+        case PartShape::HeatShield:
+            heatShield(c);
+            if(d.id>=22) for(int i=1;i<d.width/2;++i) c.bolt(static_cast<float>(i)/(d.width/2),.22f);
+            break;
+        case PartShape::DockingPort:
+            dockingPort(c);
+            if(d.id>=22) for(int i=1;i<d.width/2;++i) c.bolt(static_cast<float>(i)/(d.width/2),.51f);
+            break;
+        case PartShape::Adapter: adapter(c,d); break;
+        case PartShape::Wheel: wheel(c,d); break;
+        case PartShape::HeavyLeg: heavyLeg(c); break;
+        case PartShape::IonEngine: ionEngine(c); break;
+        case PartShape::Fairing: fairing(c,d); break;
+        case PartShape::EngineBase: engineBase(c,d); break;
+        case PartShape::SolarPanel: solarPanel(c,d); break;
+        case PartShape::Fin: fin(c,d); break;
+        case PartShape::HollowShield: hollowShield(c,d); break;
+        case PartShape::SideChute: sideChute(c); break;
     }
     if(selected) DrawRectangleLinesEx({x,y,w,h},1.0f,tinted(ui::cyan,tint));
 }
@@ -537,14 +697,19 @@ void shape(const PartDef& d,float x,float y,float w,float h,Color tint,bool sele
 Vector2 Renderer::toScreen(double gx,double gy,const Viewport& v) { return {v.originX+static_cast<float>(gx)*20*v.zoom,v.originY+static_cast<float>(gy)*20*v.zoom}; }
 Vector2 Renderer::toGrid(Vector2 p,const Viewport& v) { return {(p.x-v.originX)/(20*v.zoom),(p.y-v.originY)/(20*v.zoom)}; }
 void Renderer::workspace(const Viewport& v,Rectangle area) {
-    DrawRectangleRec(area,ui::background);
+    // The construction canvas has its own fixed palette. UI theme changes
+    // must not silently change the background or the grid.
+    constexpr Color canvas{40,52,66,255};      // #283442
+    constexpr Color minorGrid{47,61,75,255};
+    constexpr Color majorGrid{55,70,86,255};
+    DrawRectangleRec(area,canvas);
     BeginScissorMode(static_cast<int>(area.x),static_cast<int>(area.y),static_cast<int>(area.width),static_cast<int>(area.height));
     float step=20*v.zoom; int stride=1; while(step*stride<12) stride*=2;
     Vector2 lo=toGrid({area.x,area.y},v),hi=toGrid({area.x+area.width,area.y+area.height},v);
     int sx=static_cast<int>(std::floor(lo.x/stride))*stride,ex=static_cast<int>(std::ceil(hi.x/stride))*stride;
     int sy=static_cast<int>(std::floor(lo.y/stride))*stride,ey=static_cast<int>(std::ceil(hi.y/stride))*stride;
-    for(int x=sx;x<=ex;x+=stride) { float px=std::round(toScreen(x,0,v).x); DrawLineV({px,area.y},{px,area.y+area.height},x%4==0?ui::line:ui::grid); }
-    for(int y=sy;y<=ey;y+=stride) { float py=std::round(toScreen(0,y,v).y); DrawLineV({area.x,py},{area.x+area.width,py},y%4==0?ui::line:ui::grid); }
+    for(int x=sx;x<=ex;x+=stride) { float px=std::round(toScreen(x,0,v).x); DrawLineV({px,area.y},{px,area.y+area.height},x%4==0?majorGrid:minorGrid); }
+    for(int y=sy;y<=ey;y+=stride) { float py=std::round(toScreen(0,y,v).y); DrawLineV({area.x,py},{area.x+area.width,py},y%4==0?majorGrid:minorGrid); }
     float axis=toScreen(0,0,v).x;
     DrawLineEx({axis,area.y},{axis,area.y+area.height},1.0f,Color{98,157,197,180});
     EndScissorMode();
