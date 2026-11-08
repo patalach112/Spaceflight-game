@@ -1,3 +1,4 @@
+#include "VABInteraction.hpp"
 #include "VABSystem.hpp"
 #include <cmath>
 #include <cstdlib>
@@ -7,21 +8,21 @@ void interactionTests();
 int main() {
     VABSystem v;
     check(!v.preview(1,0,-4.6,false).snapped,"snap radius uses continuous cursor position");
-    check(v.preview(1,0,-4.4,false).valid,"part within snap radius reaches floor");
-    auto floor=v.preview(1,0,-3,false);
-    check(floor.valid && floor.position.x==-2 && floor.position.y==-6,"tank snaps to floor");
-    check(v.place(1,floor,false),"place tank");
+    check(v.preview(1,0,-4.4,false).valid,"grid position near reference line is valid");
+    auto atAxis=v.preview(1,0,-3,false);
+    check(atAxis.valid && atAxis.position.x==-2 && atAxis.position.y==-6,"tank can touch the reference line");
+    check(v.place(1,atAxis,false),"place tank");
     auto pod=v.preview(0,0,-8,false);
     check(pod.valid && pod.position.y==-10,"pod snaps to tank top");
     check(v.place(0,pod,false),"place pod");
     check(!v.preview(0,0,-8,false).valid,"occupied node and collision prevent duplicate");
     auto t=v.telemetry();
-    check(t.count==2 && std::abs(t.mass-5.3)<1e-8 && t.thrust==0 && t.twr==0,"telemetry includes fuel mass");
+    check(t.count==2 && std::abs(t.mass-19.0)<1e-8 && t.thrust==0 && t.twr==0,"telemetry includes fuel mass");
     auto removed=v.removeAt(0,-8); check(removed && removed->defId==0,"hit removal");
     check(v.restore(*removed),"restore moved part");
     VABSystem symmetric;
     auto pair=symmetric.preview(1,5,-3,true);
-    check(pair.valid && symmetric.place(1,pair,true),"mirror floor placement");
+    check(pair.valid && symmetric.place(1,pair,true),"mirror placement");
     check(symmetric.parts().size()==2 && symmetric.parts()[0].position.x==3 && symmetric.parts()[1].position.x==-7,"mirror across center axis");
     auto symmetricPod=symmetric.preview(0,5,-8,true);
     check(symmetricPod.valid && symmetric.place(0,symmetricPod,true),"mirror node placement");
@@ -37,23 +38,23 @@ int main() {
     check(asymmetric.preview(0,5,-8,true).valid,"symmetry permits a clear grid position without support");
     VABSystem engine;
     auto engineBase=engine.preview(2,0,-1.5,false);
-    check(engineBase.valid && engine.place(2,engineBase,false),"engine can be supported by the floor");
+    check(engineBase.valid && engine.place(2,engineBase,false),"engine can touch the reference line");
     auto tankAboveEngine=engine.preview(1,0,-6,false);
     check(tankAboveEngine.valid && engine.place(1,tankAboveEngine,false),"tank attaches above engine");
     auto powered=engine.telemetry();
-    check(powered.thrust==120.0 && std::abs(powered.twr-120.0/(5.15*9.80665))<1e-8,"powered telemetry");
+    check(std::abs(powered.thrust-120.0*9.80665)<1e-8 && std::abs(powered.twr-120.0/18.5)<1e-8,"powered telemetry");
     VABSystem decoupler;
-    auto base=decoupler.preview(3,0,-.5,false); check(base.valid && decoupler.place(3,base,false),"floor decoupler");
-    // Engine can attach to the underside of a suspended tank, not through the floor.
+    auto base=decoupler.preview(3,0,-.5,false); check(base.valid && decoupler.place(3,base,false),"reference-line decoupler");
+    // Adjacent tanks can still stack and contribute full mass.
     VABSystem stack;
-    auto floorTank=stack.preview(1,0,-3,false); stack.place(1,floorTank,false);
+    auto baseTank=stack.preview(1,0,-3,false); stack.place(1,baseTank,false);
     auto upper=stack.preview(1,0,-9,false); stack.place(1,upper,false);
-    auto info=stack.telemetry(); check(info.count==2 && std::abs(info.mass-9.0)<1e-8,"stack mass");
+    auto info=stack.telemetry(); check(info.count==2 && std::abs(info.mass-30.0)<1e-8,"stack mass");
     auto stale=upper; check(!stack.place(1,stale,false),"reject stale preview");
     VABSystem collisions;
     auto first=collisions.preview(1,0,-3,false); collisions.place(1,first,false);
     auto intersect=collisions.preview(1,2,-3,false);
-    check(intersect.snapped && !intersect.valid, "floor snap rejects overlapping AABBs");
+    check(!intersect.valid, "grid placement rejects overlapping AABBs");
     auto uid=collisions.parts()[0].uid;
     check(collisions.removeById(uid) && !collisions.removeById(uid), "selection deletion is by stable id");
     check(collisions.parts().empty(), "deletion removes exactly one part");
@@ -80,13 +81,64 @@ int main() {
     check(!rotationBlocked.rotateById(before.uid,1),"rotation rejects overlap");
     check(rotationBlocked.parts()[0].position.x==before.position.x && rotationBlocked.parts()[0].rotation==before.rotation,"failed rotation rolls back");
     auto weighted=rotationBlocked.centerOfMass();
-    check(std::abs(weighted.x-2.0)<1e-8 && std::abs(weighted.mass-9.0)<1e-8,"center of mass is mass weighted");
+    check(std::abs(weighted.x-2.0)<1e-8 && std::abs(weighted.mass-30.0)<1e-8,"center of mass is mass weighted");
     VABSystem rotationCycle;
     auto e=rotationCycle.preview(2,20,-20,false); check(rotationCycle.place(2,e,false),"place engine for rotation cycle");
     auto initial=rotationCycle.parts()[0];
     for(int i=0;i<4;++i) check(rotationCycle.rotateById(initial.uid,1),"rotate engine quarter-turn");
     auto after=rotationCycle.parts()[0];
     check(after.rotation==0 && after.position.x==initial.position.x && after.position.y==initial.position.y,"four rotations do not drift on the grid");
+    // The horizontal axis is only a reference: no bounds, artificial snap, or
+    // occupied node is associated with y=0.
+    VABSystem openGrid;
+    auto below=openGrid.preview(1,10,10,false);
+    check(below.valid && !below.snapped && below.position.y>0 && openGrid.place(1,below,false),"place entirely below reference line");
+    auto across=openGrid.preview(1,0,0,false);
+    check(across.valid && !across.snapped && across.position.y<0 && across.position.y+6>0 && openGrid.place(1,across,false),"place across reference line");
+    check(openGrid.rotateById(openGrid.parts().back().uid,1),"rotate across reference line");
+    VABSystem lineNodes;
+    auto upperTank=lineNodes.preview(1,0,-3,false);
+    check(lineNodes.place(1,upperTank,false),"place tank touching line");
+    auto lowerEngine=lineNodes.preview(2,0,1.5,false);
+    check(lowerEngine.valid && lowerEngine.snapped && lowerEngine.position.y==0 && lineNodes.place(2,lowerEngine,false),"free downward node on reference line snaps below it");
+    VABSystem radialSnap;
+    auto radialTank=radialSnap.preview(1,0,0,false);
+    check(radialSnap.place(1,radialTank,false),"place tank across reference line for radial attachments");
+    auto legs=radialSnap.preview(14,3,0,true);
+    check(legs.valid && legs.snapped && radialSnap.place(14,legs,true),"symmetrical legs snap to tank side nodes");
+    const auto& legA=radialSnap.parts()[1]; const auto& legB=radialSnap.parts()[2];
+    auto nodeA=rotatedNode(partById(14),partById(14).nodes[0],legA.rotation,legA.flipped);
+    auto nodeB=rotatedNode(partById(14),partById(14).nodes[0],legB.rotation,legB.flipped);
+    check(legA.position.x+nodeA.offset.x==2 && legB.position.x+nodeB.offset.x==-2 && nodeA.direction==Direction::Left && nodeB.direction==Direction::Right,"mirrored radial nodes face tank");
+    VABSystem radialPair;
+    auto radial=radialPair.preview(14,6,4,true,1);
+    check(radial.valid && radialPair.place(14,radial,true),"place mirrored radial legs");
+    auto leftNode=rotatedNode(partById(14),partById(14).nodes[0],radialPair.parts()[0].rotation,radialPair.parts()[0].flipped);
+    auto rightNode=rotatedNode(partById(14),partById(14).nodes[0],radialPair.parts()[1].rotation,radialPair.parts()[1].flipped);
+    check(leftNode.offset.x+rightNode.offset.x==partWidth(partById(14),1) && leftNode.offset.y==rightNode.offset.y,"mirrored rotated radial nodes reflect correctly");
+    VABInteraction radialInput(radialPair);
+    auto mirroredLeg=radialPair.parts()[1];
+    radialInput.beginMove(mirroredLeg.position.x+1,mirroredLeg.position.y+1);
+    check(radialInput.moving() && radialInput.flipped(),"moving a mirrored part preserves its reflection");
+    radialInput.cancel();
+    check(radialPair.parts().back().flipped,"cancel restores mirrored part");
+    VABSystem control;
+    auto rcs=control.preview(15,0,10,false);
+    check(control.place(15,rcs,false) && control.telemetry().thrust==0,"RCS thrust is not included in main engine TWR");
+    check(partCatalog().size()>=22,"core catalog is populated");
+    check(partById(5).height<partById(6).height && partById(6).height<partById(1).height && partById(1).height<partById(7).height,"tank sizes increase");
+    for(int id:{5,6,1,7}) { const auto& tankDef=partById(id); check(std::abs(tankDef.fuelCapacity/(tankDef.dryMass+tankDef.fuelCapacity)-.9)<1e-8,"tank mass is 90 percent fuel"); }
+    check(std::abs(partById(8).thrust/9.80665-40)<1e-8 && std::abs(partById(9).thrust/9.80665-400)<1e-8 && std::abs(partById(11).thrust/9.80665-15)<1e-8,"engine thrust converts tonne-force to kN");
+    for(const auto& d:partCatalog()) {
+        check(d.width>0 && d.height>0 && d.dryMass>=0 && d.fuelCapacity>=0 && d.thrust>=0,"valid catalog definition");
+        check(&partById(d.id)==&d,"catalog ids are unique");
+        for(auto node:d.nodes) check(node.offset.x>=0 && node.offset.x<=d.width && node.offset.y>=0 && node.offset.y<=d.height,"catalog node in part bounds");
+        for(int r=0;r<4;++r) {
+            VABSystem testBuild;
+            auto p=testBuild.preview(d.id,20,20,false,r);
+            check(p.valid && testBuild.place(d.id,p,false),"every catalog part is placeable below the line at every rotation");
+        }
+    }
     interactionTests();
     std::cout << "All construction and interaction tests passed.\n";
 }

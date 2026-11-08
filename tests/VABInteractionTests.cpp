@@ -35,4 +35,11 @@ void interactionTests() {
     input.choosePart(2); require(input.rotate(-1) && input.rotation()==3,"ghost rotation");
     input.cancel(); require(!input.active(),"cancel clears ghost");
     input.clear(); require(v.parts().empty() && input.selected()==0,"clear removes the build and selection");
+    input.choosePart(14);
+    require(input.finishDrag(8,10,true,true,true),"symmetric palette drag places below the reference line");
+    require(v.parts().size()==2 && v.parts()[1].flipped,"symmetric drag reflects radial part");
+    input.beginMove(v.parts()[1].position.x+1,v.parts()[1].position.y+1);
+    require(input.moving() && input.flipped(),"mirrored part retains reflection when picked up");
+    require(input.finishDrag(-15,12,true,false,true),"move mirrored part below the reference line");
+    require(v.parts().back().flipped,"moving mirrored part retains reflection");
 }
