@@ -18,13 +18,15 @@ public:
     const std::vector<PartInstance>& parts() const { return parts_; }
     // Cursor is in continuous grid coordinates, relative to the reference-axis origin.
     Placement preview(int defId, double cursorX, double cursorY, bool symmetry, int rotation = 0, bool flipped = false) const;
-    bool place(int defId, const Placement& placement, bool symmetry);
+    bool place(int defId, const Placement& placement, bool symmetry, bool deployed = false);
     std::optional<PartInstance> removeAt(double x, double y);
     bool restore(const PartInstance& part);
     bool removeById(unsigned long long uid);
     Telemetry telemetry() const;
     CenterOfMass centerOfMass() const;
     bool rotateById(unsigned long long uid, int direction);
+    const PartInstance* findById(unsigned long long uid) const;
+    bool toggleDeploymentById(unsigned long long uid);
     void clear() { parts_.clear(); }
 private:
     std::vector<PartInstance> parts_;

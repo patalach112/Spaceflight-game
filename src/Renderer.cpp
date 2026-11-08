@@ -50,7 +50,7 @@ MaterialProfile materialFor(int id) {
         {{61,70,77,255},{150,158,159,255},{104,116,121,255},.34f,.70f},
         {{80,96,109,255},{182,195,204,255},{132,151,164,255},.20f,.66f}
     };
-    if(id<0 || id>=83) throw std::logic_error("Part is missing its material profile");
+    if(id<0 || id>=98) throw std::logic_error("Part is missing its material profile");
     if(id<static_cast<int>(sizeof(profiles)/sizeof(profiles[0]))) return profiles[id];
     // Additional size variants retain a related but individually keyed finish.
     // Their geometry and panel layout are also selected by dimensions below.
@@ -645,7 +645,39 @@ void sideChute(const Canvas& c) {
     c.line(.47f,.20f,.47f,.80f,c.seam()); c.line(.65f,.20f,.65f,.80f,c.seam());
     c.line(.33f,.27f,.84f,.27f,c.bright());
 }
-void shape(const PartDef& d,float x,float y,float w,float h,Color tint,bool selected) {
+void stowedLeg(const Canvas& c,const PartDef& d) {
+    c.plate(0,.23f,.18f,.68f);
+    c.poly({{.12f,.20f},{.31f,.20f},{.44f,.72f},{.28f,.76f}},tinted({119,138,153,255},c.tint));
+    c.outline({{.12f,.20f},{.31f,.20f},{.44f,.72f},{.28f,.76f}},c.ink());
+    c.line(.19f,.30f,.34f,.69f,c.bright());
+    c.circle(.18f,.30f,.06f,c.ink()); c.circle(.18f,.30f,.03f,c.bright());
+    c.poly({{.24f,.73f},{.43f,.73f},{.52f,.82f},{.22f,.82f}},c.dark());
+    c.outline({{.24f,.73f},{.43f,.73f},{.52f,.82f},{.22f,.82f}},c.ink());
+    if(d.shape==PartShape::HeavyLeg) c.line(.24f,.37f,.37f,.67f,c.seam());
+}
+void stowedSolar(const Canvas& c,const PartDef& d) {
+    c.plate(0,.42f,.16f,.58f);
+    c.plate(.14f,.19f,.30f,.81f);
+    c.rect(.17f,.23f,.10f,.54f,tinted({38,65,91,255},c.tint));
+    c.frame(.17f,.23f,.27f,.77f,c.ink());
+    for(int i=1;i<d.height;++i) { float y=.23f+.54f*i/d.height; c.line(.18f,y,.26f,y,c.seam()); }
+}
+void cargoFairing(const Canvas& c,const PartDef& d) {
+    // Separate shell walls with a hollow centre. Collision remains the part's
+    // rectangular construction footprint, as for other catalog pieces.
+    c.plate(0,0,.15f,1); c.plate(.85f,0,1,1);
+    c.line(0,0,1,0,c.ink()); c.line(0,1,1,1,c.ink());
+    c.line(.03f,.05f,.12f,.05f,c.bright()); c.line(.88f,.05f,.97f,.05f,c.bright());
+    for(int i=1;i<d.height;++i) {
+        float y=static_cast<float>(i)/d.height;
+        c.line(.02f,y,.13f,y,c.seam()); c.line(.87f,y,.98f,y,c.seam());
+    }
+    for(int i=1;i<d.width/2;++i) {
+        float x=.15f+.70f*i/(d.width/2);
+        c.line(x,.01f,x,.07f,c.seam());
+    }
+}
+void shape(const PartDef& d,float x,float y,float w,float h,Color tint,bool selected,bool deployed) {
     Canvas c{x,y,w,h,tint,materialFor(d.id)};
     // Exhaustive dispatch: no structural fallback is allowed to silently
     // render an unrelated part. Catalog variants have explicit parameters.
@@ -663,7 +695,7 @@ void shape(const PartDef& d,float x,float y,float w,float h,Color tint,bool sele
             if(d.id>=22) for(int i=1;i<d.width/2;++i) c.bolt(static_cast<float>(i)/(d.width/2),.75f);
             break;
         case PartShape::SideSeparator: sideSeparator(c); break;
-        case PartShape::LandingLeg: landingLeg(c); break;
+        case PartShape::LandingLeg: if(deployed) landingLeg(c); else stowedLeg(c,d); break;
         case PartShape::Rcs: rcs(c); break;
         case PartShape::Panel: panel(c); break;
         case PartShape::Truss:
@@ -682,14 +714,15 @@ void shape(const PartDef& d,float x,float y,float w,float h,Color tint,bool sele
             break;
         case PartShape::Adapter: adapter(c,d); break;
         case PartShape::Wheel: wheel(c,d); break;
-        case PartShape::HeavyLeg: heavyLeg(c); break;
+        case PartShape::HeavyLeg: if(deployed) heavyLeg(c); else stowedLeg(c,d); break;
         case PartShape::IonEngine: ionEngine(c); break;
         case PartShape::Fairing: fairing(c,d); break;
         case PartShape::EngineBase: engineBase(c,d); break;
-        case PartShape::SolarPanel: solarPanel(c,d); break;
+        case PartShape::SolarPanel: if(deployed) solarPanel(c,d); else stowedSolar(c,d); break;
         case PartShape::Fin: fin(c,d); break;
         case PartShape::HollowShield: hollowShield(c,d); break;
         case PartShape::SideChute: sideChute(c); break;
+        case PartShape::CargoFairing: cargoFairing(c,d); break;
     }
     if(selected) DrawRectangleLinesEx({x,y,w,h},1.0f,tinted(ui::cyan,tint));
 }
@@ -714,7 +747,7 @@ void Renderer::workspace(const Viewport& v,Rectangle area) {
     DrawLineEx({axis,area.y},{axis,area.y+area.height},1.0f,Color{98,157,197,180});
     EndScissorMode();
 }
-void Renderer::part(const PartDef& d,double x,double y,int rotation,const Viewport& v,Color tint,bool selected,bool flipped) {
+void Renderer::part(const PartDef& d,double x,double y,int rotation,const Viewport& v,Color tint,bool selected,bool flipped,bool deployed) {
     Vector2 screen=toScreen(x,y,v); float w=d.width*20*v.zoom,h=d.height*20*v.zoom;
     int r=normalizedRotation(rotation);
     Vector2 offset=screen;
@@ -727,11 +760,11 @@ void Renderer::part(const PartDef& d,double x,double y,int rotation,const Viewpo
         rlDrawRenderBatchActive(); rlDisableBackfaceCulling();
         rlPushMatrix(); rlTranslatef(w,0,0); rlScalef(-1,1,1);
     }
-    shape(d,0,0,w,h,tint,selected);
+    shape(d,0,0,w,h,tint,selected,deployed);
     if(flipped) { rlDrawRenderBatchActive(); rlPopMatrix(); rlEnableBackfaceCulling(); }
     EndMode2D();
 }
-void Renderer::tilePart(const PartDef& d,Rectangle r) {
+void Renderer::tilePart(const PartDef& d,Rectangle r,bool deployed) {
     float unit=std::min(r.width/(d.width+1.0f),r.height/(d.height+1.0f));
-    float w=d.width*unit,h=d.height*unit; shape(d,r.x+(r.width-w)/2,r.y+(r.height-h)/2,w,h,ui::text,false);
+    float w=d.width*unit,h=d.height*unit; shape(d,r.x+(r.width-w)/2,r.y+(r.height-h)/2,w,h,ui::text,false,deployed);
 }

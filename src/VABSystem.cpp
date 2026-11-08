@@ -68,14 +68,15 @@ Placement VABSystem::preview(int defId, double x, double y, bool symmetry, int r
     }
     return result;
 }
-bool VABSystem::place(int id,const Placement& p,bool symmetry) {
+bool VABSystem::place(int id,const Placement& p,bool symmetry,bool deployed) {
     int rotation=normalizedRotation(p.rotation);
     if(!p.valid || !canPlace(id,p.position,rotation)) return false;
     const auto& d=partById(id); int w=partWidth(d,rotation),h=partHeight(d,rotation);
     GridPoint mirrored=mirror(p.position,w);
     if(symmetry && !same(p.position,mirrored) && (!canPlace(id,mirrored,-rotation) || overlap(p.position,w,h,mirrored,w,h))) return false;
-    parts_.push_back({id,p.position,nextUid_++,rotation,p.flipped});
-    if(symmetry && !same(p.position,mirrored)) parts_.push_back({id,mirrored,nextUid_++,normalizedRotation(-rotation),!p.flipped});
+    deployed=deployed && supportsDeployment(d);
+    parts_.push_back({id,p.position,nextUid_++,rotation,p.flipped,deployed});
+    if(symmetry && !same(p.position,mirrored)) parts_.push_back({id,mirrored,nextUid_++,normalizedRotation(-rotation),!p.flipped,deployed});
     return true;
 }
 std::optional<PartInstance> VABSystem::removeAt(double x,double y) {
@@ -94,6 +95,14 @@ bool VABSystem::removeById(unsigned long long uid) {
 bool VABSystem::restore(const PartInstance& p) {
     if(!canPlace(p.defId,p.position,p.rotation)) return false;
     parts_.push_back(p); return true;
+}
+const PartInstance* VABSystem::findById(unsigned long long uid) const {
+    for(const auto& p:parts_) if(p.uid==uid) return &p;
+    return nullptr;
+}
+bool VABSystem::toggleDeploymentById(unsigned long long uid) {
+    for(auto& p:parts_) if(p.uid==uid && supportsDeployment(partById(p.defId))) { p.deployed=!p.deployed; return true; }
+    return false;
 }
 bool VABSystem::rotateById(unsigned long long uid,int direction) {
     for(auto& p:parts_) if(p.uid==uid) {

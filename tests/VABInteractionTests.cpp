@@ -42,4 +42,34 @@ void interactionTests() {
     require(input.moving() && input.flipped(),"mirrored part retains reflection when picked up");
     require(input.finishDrag(-15,12,true,false,true),"move mirrored part below the reference line");
     require(v.parts().back().flipped,"moving mirrored part retains reflection");
+    // Deployment belongs to each part instance, including reflected copies.
+    VABSystem states; VABInteraction stateInput(states);
+    stateInput.choosePart(74);
+    require(stateInput.canToggleDeployment() && !stateInput.deployed(),"new solar panel starts stowed");
+    require(stateInput.toggleDeployment() && stateInput.deployed(),"deployment can be previewed while dragging");
+    require(stateInput.finishDrag(12,20,true,true,true),"place deployed mirrored solar panels");
+    require(states.parts().size()==2 && states.parts()[0].deployed && states.parts()[1].deployed,"symmetry copies deployment state");
+    auto panel=states.parts()[0];
+    stateInput.beginMove(panel.position.x+1,panel.position.y+1);
+    require(stateInput.moving() && stateInput.deployed(),"moving preserves deployment preview");
+    require(stateInput.toggleDeployment() && !stateInput.deployed(),"moving can preview stow");
+    stateInput.cancel();
+    require(states.findById(panel.uid) && states.findById(panel.uid)->deployed,"cancel restores original deployment");
+    stateInput.beginMove(panel.position.x+1,panel.position.y+1);
+    require(stateInput.toggleDeployment(),"preview a state change before a rejected move");
+    require(!stateInput.finishDrag(30,20,false,false,true),"out-of-workspace move is rejected");
+    require(states.findById(panel.uid) && states.findById(panel.uid)->deployed,"rejected move restores original deployment");
+    stateInput.beginMove(panel.position.x+1,panel.position.y+1);
+    require(stateInput.toggleDeployment() && stateInput.rotate(1),"stow and rotate a moving panel");
+    require(stateInput.finishDrag(30,20,true,false,true),"move a stowed panel");
+    require(!states.parts().back().deployed && states.parts().back().rotation==1,"state survives a successful move and rotation");
+    auto movedPanel=states.parts().back();
+    stateInput.beginMove(movedPanel.position.x+1,movedPanel.position.y+1);
+    require(!stateInput.finishDrag(movedPanel.position.x+1,movedPanel.position.y+1,true,false,false),"click selects panel without moving");
+    require(stateInput.canToggleDeployment() && !stateInput.deployed() && stateInput.toggleDeployment(),"selected part toggles deployment");
+    require(states.findById(movedPanel.uid)->deployed,"selected toggle changes the instance immediately");
+    stateInput.choosePart(1);
+    require(!stateInput.canToggleDeployment() && !stateInput.toggleDeployment(),"non-deployable parts reject toggles");
+    stateInput.cancel();
+
 }

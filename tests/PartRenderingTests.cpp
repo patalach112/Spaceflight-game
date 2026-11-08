@@ -210,8 +210,19 @@ int main() {
         for(const auto& color:bandColors) assert(color.a==180);
     }
     assert(bellContours.size()==5);
+    for(int id:{14,68,74,75}) {
+        const auto& d=partById(id);
+        normX=normY=0; normW=d.width*20.0f; normH=d.height*20.0f;
+        normalizedGeometry.clear(); recording=true;
+        Renderer::part(d,0,0,0,view,white,false,false,false);
+        recording=false; auto stowed=normalizedGeometry;
+        normalizedGeometry.clear(); recording=true;
+        Renderer::part(d,0,0,0,view,white,false,false,true);
+        recording=false;
+        assert(!stowed.empty() && stowed!=normalizedGeometry);
+    }
     // Critical recognisable hardware and exact attachment-facing features.
-    lines.clear(); Renderer::part(partById(14),0,0,0,view,white);
+    lines.clear(); Renderer::part(partById(14),0,0,0,view,white,false,false,true);
     assert(hasLine({18.4f,76.8f},{40.0f,76.8f})); // landing-leg footpad
     lines.clear(); Renderer::part(partById(21),0,0,0,view,white);
     assert(hasLine({10.8f,0},{29.2f,0}) && hasLine({0,20},{40,20})); // port capture rim and base

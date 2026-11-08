@@ -12,7 +12,7 @@ private:
     VABInteraction interaction_{vab_};
     Viewport view_{0,0,1};
     bool viewInitialized_ = false, symmetry_ = false, showCenter_ = false, quit_ = false;
-    Category category_ = Category::Pods;
+    CatalogTab category_ = CatalogTab::Basics;
     bool movedActually_ = false;
     Vector2 dragStart_{}, zoomAnchor_{};
     float targetZoom_ = 1.0f, catalogScroll_ = 0;
